@@ -12,3 +12,5 @@ data/*
 *.p12
 *.pfx
 .geobridge-backups/
+
+vercel-output/

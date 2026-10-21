@@ -1,0 +1,11 @@
+.git
+data
+.env
+.env.*
+*.key
+*.pem
+*.p12
+*.pfx
+.geobridge-backups
+vercel-output
+node_modules

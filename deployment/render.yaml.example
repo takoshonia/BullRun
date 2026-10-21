@@ -1,0 +1,18 @@
+# Optional PAID backend deployment. Do not deploy without reviewing cost.
+services:
+  - type: web
+    name: geobridge-backend
+    runtime: docker
+    plan: starter
+    healthCheckPath: /api/health
+    disk:
+      name: geobridge-data
+      mountPath: /app/data
+      sizeGB: 1
+    envVars:
+      - key: GEOBRIDGE_HOST
+        value: 0.0.0.0
+      - key: GEOBRIDGE_DATA_DIR
+        value: /app/data
+      - key: GEOBRIDGE_ORIGIN
+        sync: false
