@@ -1,0 +1,15 @@
+{
+  "name": "Fictional loan API · response review exercise",
+  "synthetic": true,
+  "mode": "synthetic_fixture",
+  "environment": "Local uploaded fixture; no bank called",
+  "profile": "ofa-ais",
+  "captureMethod": "Authored synthetic JSON for contract validation",
+  "observations": [
+    {"operation":"accounts","status":200,"contentType":"application/json","requestId":"5f3d97da-3784-4870-9a60-a0d1f70bfacd","body":{"accounts":[{"resourceId":"synthetic-loan-01","currency":"GEL","cashAccountType":"LOAN","bic":"TESTGE22","displayName":"Synthetic loan"}]}},
+    {"operation":"balances","status":200,"contentType":"application/json","accountCategory":"LOAN","body":{"balances":[{"balanceAmount":{"amount":"-1250.50","currency":"GEL"},"balanceType":"openingBooked","balanceSubTypeProprietary":"principal"}]}},
+    {"operation":"transactions","status":200,"contentType":"application/json","body":{"transactions":{"booked":[{"transactionId":"synthetic-01","transactionAmount":{"amount":"-25.50","currency":"GEL"},"bookingDate":"2026-10-20"}],"pending":[]}}}
+  ],
+  "samples": [],
+  "limitations": ["Fictional fixtures; not bank observations", "No performance samples; latency and uptime must remain unmeasured"]
+}

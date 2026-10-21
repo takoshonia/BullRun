@@ -1,0 +1,149 @@
+[
+  {
+    "file": "IAA-0.8.RC1.docx",
+    "sha256": "77d10413ad482266c4f39aa0b64a03b909710911373f451e3602cdb52d0f2604",
+    "size": 155605,
+    "origin": "Official cdn.association.ge legacy Word/PDF link",
+    "archive": false
+  },
+  {
+    "file": "IAA-0.8.RC1.pdf",
+    "sha256": "6e662f50c1f844dc50388ee0da7ad637ec0ef08f9e5d41693ed2838cbece8da3",
+    "size": 609436,
+    "origin": "Official cdn.association.ge legacy Word/PDF link",
+    "archive": false
+  },
+  {
+    "file": "Index.xlsx",
+    "sha256": "4f4343cce7d072a704ebc81379b7a618d8b3163493c651d1352e16aeb6008ccf",
+    "size": 19775,
+    "origin": "User-supplied standards collection, 2026-10-20",
+    "archive": false
+  },
+  {
+    "file": "JWS-0.5.RC1.docx",
+    "sha256": "ce3a7d0abb62573b681db2d4cf07864bd8a853485c4bdd1a2a0c40af98c96514",
+    "size": 110975,
+    "origin": "Official cdn.association.ge legacy Word/PDF link",
+    "archive": false
+  },
+  {
+    "file": "JWS-0.5.RC1.pdf",
+    "sha256": "e3131979ed751d109f093b137a37a8aab0bc26d1bc0e5c4dfb46cdde143e09a2",
+    "size": 602932,
+    "origin": "Official cdn.association.ge legacy Word/PDF link",
+    "archive": false
+  },
+  {
+    "file": "XS2A-0.8.RC3.docx",
+    "sha256": "6c194efd79834d81197ce02440614decfc89bc44ec44e42d9cdec620add4f974",
+    "size": 893663,
+    "origin": "Official cdn.association.ge legacy Word/PDF link",
+    "archive": false
+  },
+  {
+    "file": "ღია ბანკინგის სტანდარტი (საჯარო)\\GBA oFA Account Information Service Implementation Guide 0.1.0-20240808.docx",
+    "sha256": "0b58d555cbbbe7c0995723ca06a21f5f59b5b86f6a04dd60f0ad44bb6e136bb6",
+    "size": 169861,
+    "origin": "User-supplied standards collection, 2026-10-20",
+    "archive": false
+  },
+  {
+    "file": "ღია ბანკინგის სტანდარტი (საჯარო)\\GBA oFA Common Protocol Features 2.0.0.docx",
+    "sha256": "d043beac7f2d595ba64d7509351261eb3126113e3dfa32eb8f88561d988cd847",
+    "size": 568098,
+    "origin": "User-supplied standards collection, 2026-10-20",
+    "archive": false
+  },
+  {
+    "file": "ღია ბანკინგის სტანდარტი (საჯარო)\\GBA oFA Common Protocol Features 2.0.0.pdf",
+    "sha256": "7ef9a416ae51dd52ba19066d284c23aa82c6ca34872167051648162ebed98cec",
+    "size": 4381523,
+    "origin": "User-supplied standards collection, 2026-10-20",
+    "archive": false
+  },
+  {
+    "file": "ღია ბანკინგის სტანდარტი (საჯარო)\\GBA oFA Consents Implementation Guide 0.1.0-20240619.docx",
+    "sha256": "c70368403bad66e44271d4adf371ce53dda099d482e535d94cf97dcfc9d9caba",
+    "size": 167594,
+    "origin": "User-supplied standards collection, 2026-10-20",
+    "archive": false
+  },
+  {
+    "file": "ღია ბანკინგის სტანდარტი (საჯარო)\\GBA oFA Domestic Definitions 1.0.1.docx",
+    "sha256": "df4c1333fe829d8d79dbe27be6e166ceb2926e3c547ce0d1fe4e83574508d550",
+    "size": 173960,
+    "origin": "User-supplied standards collection, 2026-10-20",
+    "archive": false
+  },
+  {
+    "file": "ღია ბანკინგის სტანდარტი (საჯარო)\\GBA oFA Identity Assurance 0.4.1-20250419.docx",
+    "sha256": "8d19d9faf3605b9c3faa71c0b83a1ea1456b002d2a5f2947d44a89736c4513ca",
+    "size": 166948,
+    "origin": "User-supplied standards collection, 2026-10-20",
+    "archive": false
+  },
+  {
+    "file": "ღია ბანკინგის სტანდარტი (საჯარო)\\GBA oFA Payments Implementation Guide 1.2.0.docx",
+    "sha256": "625569b1666d1f8394ab8a5966c5dbd18748882694a33bbcf4d6bcfc28bae5be",
+    "size": 144220,
+    "origin": "User-supplied standards collection, 2026-10-20",
+    "archive": false
+  },
+  {
+    "file": "ღია ბანკინგის სტანდარტი (საჯარო)\\GBA oFA Payments Implementation Guide 1.2.0.pdf",
+    "sha256": "53bb3db0847039f045aabf264e78cd900f1943e40ba8e5a87db413104e1e17fa",
+    "size": 3645592,
+    "origin": "User-supplied standards collection, 2026-10-20",
+    "archive": false
+  },
+  {
+    "file": "ღია ბანკინგის სტანდარტი (საჯარო)\\GBA oFA Push AIS 0.1.0-20251208.docx",
+    "sha256": "df5c7209cec88b5a161ad3e2996ab3098aff17d632d18b687b89a53791aac7b9",
+    "size": 95771,
+    "origin": "User-supplied standards collection, 2026-10-20",
+    "archive": false
+  },
+  {
+    "file": "ღია ბანკინგის სტანდარტი (საჯარო)\\Index.xlsx",
+    "sha256": "4f4343cce7d072a704ebc81379b7a618d8b3163493c651d1352e16aeb6008ccf",
+    "size": 19775,
+    "origin": "User-supplied standards collection, 2026-10-20",
+    "archive": false
+  },
+  {
+    "file": "ღია ბანკინგის სტანდარტი (საჯარო)\\არქივი\\GBA oFA Common Protocol Features 1.0.0.docx",
+    "sha256": "aafb35b2e57a80f8328939bfe74de5138514f8f9153468cb9c189206ba0b182c",
+    "size": 145501,
+    "origin": "User-supplied standards collection, 2026-10-20",
+    "archive": true
+  },
+  {
+    "file": "ღია ბანკინგის სტანდარტი (საჯარო)\\არქივი\\GBA oFA Common Protocol Features 1.1.3.docx",
+    "sha256": "10af97ebc1e4a12b2d4bee1177f3b4228bd79eb8ee08427b7abc0c946f74be4d",
+    "size": 84279,
+    "origin": "User-supplied standards collection, 2026-10-20",
+    "archive": true
+  },
+  {
+    "file": "ღია ბანკინგის სტანდარტი (საჯარო)\\არქივი\\GBA oFA Domestic Definitions 0.1.0-20240728.docx",
+    "sha256": "8ef1d5dfc0c88bca4043c97382988f3a4063a08f09ceae676b4ce5efe6a74f44",
+    "size": 164404,
+    "origin": "User-supplied standards collection, 2026-10-20",
+    "archive": true
+  },
+  {
+    "file": "ღია ბანკინგის სტანდარტი (საჯარო)\\არქივი\\GBA oFA Payments Implementation Guide 1.0.1-20240311.docx",
+    "sha256": "83e80cce36e1acc9b16138457f24af30a0d54bb6df78e851b7e2b59363f02fa7",
+    "size": 702232,
+    "origin": "User-supplied standards collection, 2026-10-20",
+    "archive": true
+  },
+  {
+    "file": "ღია ბანკინგის სტანდარტი (საჯარო)\\არქივი\\GBA oFA Payments Implementation Guide 1.1.0.docx",
+    "sha256": "05f7f97ddb2e50f34da2d88dad4d6563c39d5a31517af47ad8b2fdc156131d45",
+    "size": 200524,
+    "origin": "User-supplied standards collection, 2026-10-20",
+    "archive": true
+  }
+]

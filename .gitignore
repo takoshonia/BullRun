@@ -1,0 +1,13 @@
+data/*
+!data/.gitkeep
+.env
+.env.*
+!.env.example
+*.log
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+*.pem
+*.key
+*.p12
+*.pfx

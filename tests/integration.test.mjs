@@ -1,0 +1,40 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import {spawn} from 'node:child_process';
+const root=path.resolve(import.meta.dirname,'..');
+test('HTTP workflows: authentication, CSRF, worker, evidence, reports, isolation, gates and mapper',{timeout:45000},async()=>{
+ const dir=fs.mkdtempSync(path.join(root,'data','integration-'));const port=14317;const origin=`http://127.0.0.1:${port}`;
+ const proc=spawn(process.execPath,['src/server.mjs'],{cwd:root,env:{...process.env,PORT:String(port),GEOBRIDGE_ORIGIN:origin,GEOBRIDGE_DATA_DIR:dir},stdio:['ignore','pipe','pipe']});
+ let logs='';proc.stdout.on('data',x=>logs+=x);proc.stderr.on('data',x=>logs+=x);
+ try{
+  for(let n=0;n<80;n++){await new Promise(r=>setTimeout(r,100));if(fs.existsSync(path.join(dir,'demo-credentials.json'))){try{if((await fetch(origin+'/api/health')).ok)break}catch{}}}
+  const credentials=JSON.parse(fs.readFileSync(path.join(dir,'demo-credentials.json')));const sessions={};
+  async function login(name){const c=credentials.find(x=>x.username===name);const r=await fetch(origin+'/api/login',{method:'POST',headers:{Origin:origin,'Content-Type':'application/json'},body:JSON.stringify(c)});assert.equal(r.status,200);const data=await r.json();sessions[name]={cookie:r.headers.get('set-cookie').split(';')[0],csrf:data.csrf};return data}
+  async function call(name,url,method='GET',body){const s=sessions[name];const r=await fetch(origin+url,{method,headers:{Origin:origin,'Content-Type':'application/json',Cookie:s.cookie,'X-CSRF-Token':s.csrf},body:body===undefined?undefined:JSON.stringify(body)});const text=await r.text();let data;try{data=JSON.parse(text)}catch{data=text}return {status:r.status,data}}
+  async function waitRun(name,id){for(let i=0;i<60;i++){const {data}=await call(name,'/api/runs/'+id);if(['completed','failed'].includes(data.status))return data;await new Promise(r=>setTimeout(r,100))}throw Error('Worker timeout')}
+  assert.equal((await fetch(origin+'/api/workspace')).status,401);
+  for(const name of ['operator','bank','tpp','reviewer','standards'])await login(name);
+  assert.equal((await fetch(origin+'/api/runs',{method:'POST',headers:{Origin:origin,Cookie:sessions.bank.cookie,'Content-Type':'application/json'},body:'{}'})).status,403);
+  assert.equal((await call('tpp','/api/runs','POST',{kind:'platform'})).status,403);
+  const run=await call('bank','/api/runs','POST',{kind:'platform'});assert.equal(run.status,201);const done=await waitRun('bank',run.data.id);assert.equal(done.status,'completed');assert.equal(done.counts.PASS,25);
+  assert.equal((await call('tpp','/api/runs/'+run.data.id)).status,404);
+  assert.equal((await call('reviewer','/api/runs/'+run.data.id)).status,200);
+  assert.equal((await call('bank','/api/runs/'+run.data.id+'/export/incompatibility')).status,200);
+  assert((await call('bank','/api/runs/'+run.data.id+'/export/quality')).data.includes('No regulatory threshold configured'));
+  const pack=JSON.parse(fs.readFileSync(path.join(root,'examples','synthetic-evidence.json')));const imported=await call('bank','/api/packs','POST',pack);assert.equal(imported.status,201);
+  assert.equal((await call('reviewer','/api/packs/'+imported.data.id)).status,403,'oversight must not receive raw transaction evidence by default');
+  const evidenceRun=await call('bank','/api/runs','POST',{kind:'evidence',packId:imported.data.id});const reviewed=await waitRun('bank',evidenceRun.data.id);assert.equal(reviewed.evidenceMode,'synthetic_fixture');assert(reviewed.counts.NEEDS_REVIEW>0);assert(reviewed.metrics.every(x=>x.p50===null));
+  const gate=await call('bank','/api/gates','POST',{runId:done.id,name:'Platform-only candidate'});assert.equal(gate.data.decision,'HOLD');
+  const valid=await call('tpp','/api/normalize','POST',{synthetic:true,operation:'balances',body:{balances:[{balanceAmount:{amount:'1.50',currency:'GEL'},balanceType:'interimAvailable'}]}});assert.equal(valid.data.data.balances[0].amount,'1.50');
+  assert.equal((await call('tpp','/api/normalize','POST',{synthetic:true,operation:'balances',body:{balances:[{balanceAmount:{amount:'1.50'},balanceType:'interimAvailable'}]}})).status,422);
+  assert.equal((await call('tpp','/bridge/v1/connections/test/accounts')).status,503);
+  assert.equal((await call('bank','/api/rules/COMMON-JSON/review','POST',{approve:true,note:'reviewed enough',confirm:true})).status,403);
+  assert.equal((await call('standards','/api/rules/COMMON-JSON/review','POST',{approve:true,note:'Test-only applicability review for JSON support',confirm:true})).status,200);
+  const x=await call('bank','/api/runs/'+done.id+'/explain','POST',{findingId:'S01',language:'ka'});assert.equal(x.data.mode,'deterministic_template');
+  assert.equal((await call('tpp','/api/events')).data.some(x=>x.target===done.id),false);
+  console.log('HTTP workflow verification passed. '+done.counts.PASS+' actual local controls.');
+ }catch(e){console.error(logs);throw e}finally{proc.kill();await new Promise(r=>proc.once('exit',r));}
+});

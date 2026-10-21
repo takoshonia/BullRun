@@ -1,0 +1,14 @@
+{
+  "at": "2026-10-21T08:12:58.998Z",
+  "node": "v24.19.0",
+  "exitCode": 0,
+  "checks": [
+    "Deterministic controls and capture validation",
+    "HTTP authentication, CSRF, worker, exports and role isolation",
+    "All ten UI views render using a controlled DOM harness"
+  ],
+  "browserVisualQA": "Not completed: local preview could not be reached by browser tool",
+  "bankIntegration": "Not configured",
+  "liveAI": "Not exercised without key/model",
+  "output": "✔ all 25 local assurance controls execute successfully (221.4303ms)\n✔ evidence import rejects unlabelled real data and malformed measurements (0.9899ms)\n✔ mapping never hides a missing currency and preserves both balance types (0.3412ms)\n✔ source-based error test differentiates a valid positive response from a defect (0.4623ms)\n✔ unsupported lifecycle check stays not assessed (0.1656ms)\n✔ error cases do not improve latency and are excluded when expected negative (0.1539ms)\n✔ cross-tenant access is denied and reviewer cannot access TPP data (0.1242ms)\n✔ redaction catches nested canary secrets (1.5989ms)\n✔ target scheme and host checks fail closed (0.3303ms)\n✔ unknown transaction categories and duplicate accounts fail mapping rather than dropping meaning (0.2751ms)\n✔ regression comparison enforces the profile and shows verdict changes (0.4569ms)\nHTTP workflow verification passed. 25 actual local controls.\n✔ HTTP workflows: authentication, CSRF, worker, evidence, reports, isolation, gates and mapper (1643.9608ms)\n✔ all workspace views render without template exceptions; unsafe names are escaped (255.9012ms)\nℹ tests 13\nℹ suites 0\nℹ pass 13\nℹ fail 0\nℹ cancelled 0\nℹ skipped 0\nℹ todo 0\nℹ duration_ms 1763.7978\n"
+}
