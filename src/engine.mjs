@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {all,get,put,event,root} from './store.mjs';
 import {assurance} from './assurance.mjs';
+import {reviewSpecification} from './spec-audit.mjs';
 import {id,sha,redact,normalize,metrics} from './security.mjs';
 export function validatePack(p){
  if(!p||p.synthetic!==true)throw Error('Only explicitly synthetic evidence is accepted');
@@ -33,6 +34,7 @@ export function evaluate(rule,o){const b=o.body;const a=b.accounts||[];const val
 export function executeRun(run){
  const output=[];const start=new Date().toISOString();
  if(run.kind==='platform')output.push(...assurance());
+ if(run.kind==='spec'){const uploaded=get('specs',run.connectionId);if(!uploaded)throw Error('No specification uploaded');output.push(...reviewSpecification(uploaded.spec,all('rules').filter(r=>r.profile===run.profile)));}
  let pack=null;if(run.packId){pack=get('packs',run.packId);if(!pack)throw Error('Evidence pack no longer exists');const rules=all('rules').filter(x=>x.profile===pack.profile);
  for(const r of rules){if(r.status!=='approved'){output.push({...r,id:r.id,verdict:'NEEDS_REVIEW',expected:'Human-approved rule and applicability',observed:'Rule is a draft; not executed'});continue}
  const obs=pack.observations.filter(o=>r.operation==='all'||r.operation===o.operation);if(!obs.length){output.push({...r,verdict:'NOT_ASSESSED',expected:'Matching observation',observed:'No selected-operation evidence'});continue}
@@ -44,6 +46,6 @@ export function executeRun(run){
  const groups=pack?['accounts','balances','transactions','consent'].map(operation=>({operation,...metrics(pack.samples.filter(s=>s.operation===operation))})):[];
  const counts={};for(const r of output)counts[r.verdict]=(counts[r.verdict]||0)+1;
  const timestamps=pack?.samples.filter(s=>s.kind==='positive').map(s=>Date.parse(s.timestamp))||[];
- const result={...run,status:'completed',progress:100,startedAt:start,finishedAt:new Date().toISOString(),results:output,counts,metrics:groups,measurementWindow:timestamps.length?{start:new Date(Math.min(...timestamps)).toISOString(),end:new Date(Math.max(...timestamps)).toISOString(),environment:pack.environment,captureMethod:pack.captureMethod}:null,evidenceMode:run.kind==='platform'?'local_platform_controls':pack?.mode||'not_connected',rulesetHash:sha(all('rules')),build:'0.1.0',limitations:['Selected checks only; not overall Georgian compliance or certification.','Platform fixtures do not establish bank conformance.','No production uptime inferred from short observations.','Imported samples are uploader-declared, not independently authenticated measurements.'],evidenceHash:pack?sha(pack):null};
+ const result={...run,status:'completed',progress:100,startedAt:start,finishedAt:new Date().toISOString(),results:output,counts,metrics:groups,measurementWindow:timestamps.length?{start:new Date(Math.min(...timestamps)).toISOString(),end:new Date(Math.max(...timestamps)).toISOString(),environment:pack.environment,captureMethod:pack.captureMethod}:null,evidenceMode:run.kind==='platform'?'local_platform_controls':run.kind==='spec'?'specification_only':pack?.mode||'not_connected',rulesetHash:sha(all('rules')),build:'0.1.0',limitations:['Selected checks only; not overall Georgian compliance or certification.','Platform fixtures do not establish bank conformance.','No production uptime inferred from short observations.','Imported samples are uploader-declared, not independently authenticated measurements.'],evidenceHash:pack?sha(pack):null};
  put('runs',result);event('worker','run_completed',run.id,{counts});return result;
 }

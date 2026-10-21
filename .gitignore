@@ -11,3 +11,4 @@ data/*
 *.key
 *.p12
 *.pfx
+.geobridge-backups/
