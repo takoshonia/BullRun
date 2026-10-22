@@ -1,0 +1,16 @@
+{
+  "at": "2026-10-22",
+  "environment": "Local headless Chrome against isolated synthetic test database",
+  "passed": true,
+  "checks": [
+    "Operator login and both mock bank cards",
+    "Audit both banks through actual UI actions",
+    "Persisted measured comparison renders",
+    "Demo consent grant and successful common API request",
+    "Revoked consent displays HTTP 403 CONSENT_INVALID",
+    "Repair and fresh retest opens comparison dialog",
+    "390px mobile viewport has no page-level horizontal overflow",
+    "Desktop and mobile screenshots visually inspected"
+  ],
+  "limits": "Local synthetic app flow only. Hosted deployment and real bank integration are not validated by these checks."
+}

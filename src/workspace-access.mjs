@@ -10,7 +10,7 @@ export function workspacePayload(user,{records,profiles,sources,aiConfigured,can
  return {
   user:{id:user.id,name:user.name,role:user.role,tenant:user.tenant},
   connections,
-  catalog:['tpp','operator'].includes(user.role)?records('connections').map(c=>({id:c.id,name:c.name,status:c.status,profile:c.profile,capabilities:c.capabilities})):[],
+  catalog:['tpp','operator'].includes(user.role)?records('connections').map(c=>({id:c.id,name:c.name,status:c.status,profile:c.profile,capabilities:c.capabilities,synthetic:!!c.synthetic,scenario:c.synthetic?c.scenario:undefined})):[],
   runs:diagnostic?own('runs').filter(x=>user.role!=='reviewer'||x.kind!=='platform').slice(0,100).map(({results,...r})=>r):[],
   packs:packs.map(({observations,samples,...x})=>({...x,observationCount:observations.length,sampleCount:samples.length})),
   profiles:['operator','standards'].includes(user.role)?profiles:user.role==='bank'?profiles.filter(x=>x.id!=='platform'):profiles.filter(x=>selectedProfiles.has(x.id)),
@@ -20,6 +20,6 @@ export function workspacePayload(user,{records,profiles,sources,aiConfigured,can
   gates:manager?own('gates'):[],
   updates:standards?records('updates'):user.role==='bank'?records('updates').filter(x=>x.status==='approved'):[],
   ai:{configured:aiConfigured},
-  capabilities:{bankRuntime:false,reason:'Bank adapters and authorization are pending'}
+  capabilities:{bankRuntime:false,mockRuntime:true,reason:'Two synthetic mock adapters available; real bank integration pending'}
  };
 }
