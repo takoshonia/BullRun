@@ -16,4 +16,6 @@ test('all workspace views render without template exceptions; unsafe names are e
  for(const page of ['overview','audit','connections','explorer','monitor','reports','standards','gate','activity','detail']){
   ui.state.page=page;ui.state.run=run;ui.render();const html=element('#app').innerHTML;assert(html.length>1500,page);assert(!html.includes('<img src=x'),page+' must escape imported names');assert(!html.includes('NaN'),page+' should not invent missing metrics');
  }
+ ui.state.availability=[{id:'gringott',name:'<script>bad</script>',canSwitch:true,report:{enabled:true,currentStatus:'down',checks:4,successes:2,successfulChecksPercent:50,estimatedUptimePercent:40,coveragePercent:75,estimatedDownMs:9000,unknownMs:3000,lastCheck:{at:Date.now()},intervalSeconds:5,timeoutSeconds:1}}];
+ for(const page of ['monitor','reports']){ui.state.page=page;ui.render();const html=element('#app').innerHTML;assert(html.includes('availability-report'));assert(html.includes('API OFF (timeout)'));assert(html.includes('50.00%'));assert(!html.includes('<script>bad'))}
 });

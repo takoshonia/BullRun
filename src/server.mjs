@@ -11,6 +11,9 @@ import {explain} from './ai.mjs';
 import {contract} from './contracts.mjs';
 import {compareRuns,specDiff} from './compare.mjs';
 import {workspacePayload} from './workspace-access.mjs';
+import {createAvailability,parseTargets} from './availability.mjs';
+const availability=createAvailability({db,targets:parseTargets(process.env.GEOBRIDGE_MOCK_TARGETS)});
+availability.start();
 seed();initRules();
 for(const r of all('runs').filter(x=>['running','queued'].includes(x.status)))put('runs',{...r,status:'interrupted',error:'Server restarted. Rerun to obtain a complete result.'});
 const PORT=Number(process.env.PORT||4317),HOST=process.env.GEOBRIDGE_HOST||'127.0.0.1';
@@ -55,6 +58,32 @@ const server=http.createServer(async(req,res)=>{
  const sid=(req.headers.cookie||'').match(/(?:^|;\s*)geobridge=([^;]+)/)?.[1];const session=sid?db.prepare('SELECT * FROM sessions WHERE id=? AND expires>?').get(sha(sid),Date.now()):null;const u=session?get('users',session.user_id):null;
  if(!u)throw error(401,'Sign in to GeoBridge');if(method!=='GET'&&req.headers['x-csrf-token']!==session.csrf)throw error(403,'Request token missing or invalid');
  if(p==='/api/me')return send(res,200,{user:safeUser(u),csrf:session.csrf});
+ if(p==='/api/availability'||p.startsWith('/api/availability/')){
+  requireRole(u,'operator','bank','reviewer');
+  const targets=availability.targets().filter(t=>authorized(u,t.tenant));
+  if(p==='/api/availability'&&method==='GET')return send(res,200,{targets:targets.map(t=>({...t,canSwitch:u.role==='operator'&&t.canSwitch,report:availability.report(t.id)}))});
+  const match=p.match(/^\/api\/availability\/([a-z0-9-]+)(?:\/(report|configure|probe|switch))?$/);
+  if(!match||!targets.some(t=>t.id===match[1]))throw error(404,'Monitor not found');
+  const [,target,action='report']=match;
+  try{
+   if(action==='report'&&method==='GET'){
+    const from=url.searchParams.has('from')?Number(url.searchParams.get('from')):undefined;
+    const to=url.searchParams.has('to')?Number(url.searchParams.get('to')):undefined;
+    const report=availability.report(target,from,to),format=url.searchParams.get('format')||'json';
+    if(format==='csv')return send(res,200,csv([{target:report.name,synthetic:true,from:new Date(report.window.from).toISOString(),to:new Date(report.window.to).toISOString(),checks:report.checks,successfulChecksPercent:report.successfulChecksPercent,estimatedUptimePercent:report.estimatedUptimePercent,estimatedUpMs:report.estimatedUpMs,estimatedDownMs:report.estimatedDownMs,unknownMs:report.unknownMs,coveragePercent:report.coveragePercent,incidents:JSON.stringify(report.incidents),limitations:report.limitations.join(' ')}]),'text/csv; charset=utf-8',{'Content-Disposition':`attachment; filename="availability-${target}.csv"`});
+    if(format!=='json')throw Error('Supported formats: json, csv');
+    return send(res,200,report,'application/json; charset=utf-8',{'Content-Disposition':`attachment; filename="availability-${target}.json"`});
+   }
+   if(method!=='POST')throw error(405,'Method not allowed');
+   if(action==='switch'){
+    requireRole(u,'operator');const b=await body(req);const result=await availability.switchMock(target,b.online);event(u.id,'mock_availability_changed',target,{online:b.online});return send(res,200,result);
+   }
+   requireRole(u,'operator','bank');
+   if(action==='configure'){const result=availability.configure(target,await body(req));event(u.id,'availability_configured',target,{enabled:result.enabled,intervalSeconds:result.intervalSeconds,timeoutSeconds:result.timeoutSeconds});return send(res,200,result);}
+   if(action==='probe')return send(res,200,{recorded:await availability.probe(target)});
+   throw error(404,'Unknown monitoring action');
+  }catch(e){if(e.status)throw e;throw error(400,e.message);}
+ }
  if(p==='/api/contract'&&method==='GET')return send(res,200,contract);
  if(p==='/api/compare'&&method==='POST'){const b=await body(req),before=get('runs',b.before),after=get('runs',b.after);if(!scope(u,before)||!scope(u,after))throw error(404,'Run not found');if(before.status!=='completed'||after.status!=='completed')throw error(400,'Both runs must be completed');try{return send(res,200,compareRuns(before,after))}catch(e){throw error(400,e.message)}}
  if(p==='/api/spec-diff'&&method==='POST'){requireRole(u,'bank','operator');const b=await body(req);if(!b.before?.paths||!b.after?.paths)throw error(400,'Provide before and after OpenAPI objects with paths');return send(res,200,specDiff(b.before,b.after))}
@@ -90,4 +119,4 @@ const server=http.createServer(async(req,res)=>{
 });
 server.on('error',e=>{console.error(e.code==='EADDRINUSE'?'GeoBridge port is already in use. Close the previous instance or choose another PORT.':e.message);process.exitCode=1;clearInterval(tick)});
 server.listen(PORT,HOST,()=>{console.log(`GeoBridge is running at ${origin}`);console.log('Demo credentials: '+path.join(dataDir,'demo-credentials.json'));console.log('No bank adapters configured. Local-only service.');});
-process.on('SIGTERM',()=>{clearInterval(tick);active?.terminate();server.close(()=>process.exit())});
+process.on('SIGTERM',()=>{availability.stop();clearInterval(tick);active?.terminate();server.close(()=>process.exit())});
