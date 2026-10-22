@@ -16,9 +16,13 @@ test('domain build publishes only the two explicit static files, without local s
   const page=fs.readFileSync(path.join(dir,'vercel-output/index.html'),'utf8');assert.match(page,/not available/);assert.doesNotMatch(page,/canary/);
  }finally{fs.rmSync(dir,{recursive:true,force:true});}
 });
-test('Vercel static config and backend proxy are distinct; container excludes credentials',()=>{
+test('Vercel routes all requests to the HTTPS backend before static files; container excludes credentials',()=>{
  const config=JSON.parse(fs.readFileSync(new URL('../vercel.json',import.meta.url)));
- assert.equal(config.framework,null);assert.equal(config.outputDirectory,'vercel-output');assert.equal(config.routes,undefined);
+ assert.equal(config.framework,null);assert.equal(config.outputDirectory,'vercel-output');
+ assert.equal(config.routes[0].src,'/(.*)');
+ const destination=new URL(config.routes[0].dest);
+ assert.equal(destination.protocol,'https:');assert.equal(destination.username,'');assert.equal(destination.password,'');assert.equal(destination.pathname,'/$1');
+ assert.equal(config.rewrites,undefined,'catch-all route must take precedence over generated landing page');
  const proxy=JSON.parse(fs.readFileSync(new URL('../deployment/vercel-backend.example.json',import.meta.url)));assert.deepEqual(proxy.routes[0].env,['BACKEND_URL']);
  const docker=fs.readFileSync(new URL('../Dockerfile',import.meta.url),'utf8');assert.match(docker,/USER node/);assert.doesNotMatch(docker,/COPY.*data/);
 });
