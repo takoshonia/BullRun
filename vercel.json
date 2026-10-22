@@ -4,10 +4,10 @@
   "buildCommand": "node scripts/build-vercel.mjs",
   "outputDirectory": "vercel-output",
   "installCommand": "echo No dependencies required",
-  "rewrites": [
+  "routes": [
     {
-      "source": "/:path*",
-      "destination": "https://68-183-218-89.sslip.io/:path*"
+      "src": "/(.*)",
+      "dest": "https://68-183-218-89.sslip.io/$1"
     }
   ]
 }
