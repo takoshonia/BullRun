@@ -55,7 +55,7 @@ const server=http.createServer(async(req,res)=>{
  try{
  const url=new URL(req.url,origin),p=url.pathname,method=req.method;
  if(!['GET','POST','DELETE','PATCH'].includes(method))throw error(405,'Method not allowed');
- if(!p.startsWith('/api/')&&!p.startsWith('/bridge/')){if(method!=='GET')throw error(405,'Read-only asset');const asset=p==='/'?'index.html':p.slice(1);if(!['index.html','app.js','style.css','logo.png'].includes(asset))throw error(404,'Not found');const file=path.join(root,'public',asset);return send(res,200,fs.readFileSync(file),asset.endsWith('js')?'text/javascript':asset.endsWith('css')?'text/css':asset.endsWith('png')?'image/png':'text/html')}
+ if(!p.startsWith('/api/')&&!p.startsWith('/bridge/')){if(method!=='GET')throw error(405,'Read-only asset');const asset=p==='/'?'index.html':p.slice(1);if(!['index.html','app.js','style.css','logo.png','logo-login.png'].includes(asset))throw error(404,'Not found');const file=path.join(root,'public',asset);return send(res,200,fs.readFileSync(file),asset.endsWith('js')?'text/javascript':asset.endsWith('css')?'text/css':asset.endsWith('png')?'image/png':'text/html')}
  if(p==='/api/health')return send(res,200,{status:'ok',version:'0.1.0',bankConnections:adapterTargets().length?'mock_only':'not_configured',realBankConnections:'not_configured'});
  if(method!=='GET'&&req.headers.origin!==origin)throw error(403,'Origin check failed. Open '+origin);
  if(p==='/api/login'&&method==='POST'){
