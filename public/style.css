@@ -225,3 +225,6 @@
 .measurement-scroll{max-height:420px;overflow:auto;scrollbar-width:thin;scrollbar-color:#dfe3e3 white;border-radius:0 0 var(--radius) var(--radius)}.measurement-scroll th{position:sticky;top:0;z-index:1;background:#f7f9f8}.measurement-scroll table{min-width:650px}.measurement-scroll .table-wrap{overflow:visible}
 @media(max-width:720px){.measurement-section>summary{font-size:17px;padding:18px;flex-wrap:wrap}.measurement-filters .field{min-width:100%}.measurement-scroll{max-height:340px}}
 @media(prefers-reduced-motion:reduce){.measurement-section>summary>.icon{transition:none}}
+/* Supplied GeoBridge logo artwork. */
+.brand-mark.brand-logo{display:block;object-fit:contain;padding:0;letter-spacing:normal;background:transparent;flex-shrink:0;aspect-ratio:1;width:40px;height:40px;border-radius:9px}
+.login-simple .brand-mark.brand-logo{width:44px;height:44px}

@@ -16,6 +16,7 @@ test('HTTP workflows: authentication, CSRF, worker, evidence, reports, isolation
   async function call(name,url,method='GET',body){const s=sessions[name];const r=await fetch(origin+url,{method,headers:{Origin:origin,'Content-Type':'application/json',Cookie:s.cookie,'X-CSRF-Token':s.csrf},body:body===undefined?undefined:JSON.stringify(body)});const text=await r.text();let data;try{data=JSON.parse(text)}catch{data=text}return {status:r.status,data}}
   async function waitRun(name,id){for(let i=0;i<60;i++){const {data}=await call(name,'/api/runs/'+id);if(['completed','failed'].includes(data.status))return data;await new Promise(r=>setTimeout(r,100))}throw Error('Worker timeout')}
   assert.equal((await fetch(origin+'/api/workspace')).status,401);
+  const logo=await fetch(origin+'/logo.png');assert.equal(logo.status,200);assert.match(logo.headers.get('content-type'),/image\/png/);assert.deepEqual(Buffer.from(await logo.arrayBuffer()),fs.readFileSync(path.join(root,'public','logo.png')));
   for(const name of ['operator','bank','tpp','reviewer','standards'])await login(name);
   const tppWorkspace=await call('tpp','/api/workspace');
   assert.equal(tppWorkspace.data.connections.length,0);assert.equal(tppWorkspace.data.rules.length,0);assert(tppWorkspace.data.catalog.length>0);assert(!JSON.stringify(tppWorkspace.data.catalog).includes('baseUrl'));
