@@ -18,7 +18,8 @@ export function mapGringott(operation,body){
 }
 
 export class GringottAdapter extends BankAdapter {
- constructor(transport){super();this.transport=transport;}
+ constructor(transport){super();this.transport=transport;this.version=GRINGOTT_VERSION;this.authorization='Gringott simulation only';}
+ map(operation,body){return mapGringott(operation,body);}
  capabilities(){return {accounts:true,balances:true,transactions:true,consent:true,payments:false,synthetic:true,authorization:'simulated_code',adapterVersion:GRINGOTT_VERSION};}
  async createConsent(){
   const result=requireResponse(await this.transport.request('/api/v1/consents',{method:'POST',body:{permissions:['accounts','balances','transactions']}}),201);

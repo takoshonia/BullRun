@@ -2,7 +2,7 @@
 
 ## Scope
 
-This implements the independently hosted **Gringott synthetic mock** only. It is not the cancelled `feature/mock-banks` implementation and does not implement TBC or BOG. Existing health availability monitoring remains separate.
+This adapter implements the independently hosted **Gringott synthetic mock**. It is not the cancelled `feature/mock-banks` implementation. A separate [TBC mock adapter](tbc-mock-adapter.md) shares the common service and audit infrastructure. Real TBC and BOG integration remains separate. Existing health availability monitoring remains separate.
 
 Architecture:
 
@@ -17,7 +17,7 @@ Code boundaries:
 - `adapters/gringott.mjs`: simulated consent/code/token flow, accounts and balances, explicit transaction conversion, bounded offset pagination.
 - `adapters/registry.mjs`: trusted operator configuration and idempotent scoped connection registration. No browser-supplied request URLs or private-network exemptions for real banks.
 - `adapters/common-ais.mjs`: owner/tenant/connection/account-scoped interactive mock consents. Tokens are held only in memory, never returned to a browser or persisted in audit evidence. Restart requires new consent.
-- `adapters/gringott-audit.mjs`: actual HTTP capture and independent lifecycle/pagination/contract findings. No administrative defect switches are invoked by an audit.
+- `adapters/mock-audit.mjs`: shared HTTP capture and lifecycle/pagination/contract findings with adapter-specific mapping and mock error expectations. No administrative defect switches are invoked by an audit.
 - `engine.mjs`: persists captured packs, uses the ruleset snapshot from run start, evaluates only approved profile rules, and retains original response evidence separately from normalized data.
 
 ## Configuration

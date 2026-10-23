@@ -30,7 +30,7 @@ Run tests: `node --test tests/*.test.mjs`. Gringott integration tests require th
 
 ## What deliberately does not pretend to work
 
-**Configured Gringott mocks support actual HTTP audits and common AIS reads.** See [Gringott adapter setup and walkthrough](docs/gringott-adapter.md) for consent, accounts, balances, paginated transactions and report exports. Without configuration, bank request endpoints remain blocked. Imported fictional evidence stays explicitly separate from captured mock responses.
+**Configured Gringott and independent TBC mocks support actual HTTP audits and common AIS reads.** See [Gringott adapter setup](docs/gringott-adapter.md) and [TBC mock adapter setup](docs/tbc-mock-adapter.md) for consent, accounts, balances, paginated transactions and report exports. Without configuration, bank request endpoints remain blocked. Imported fictional evidence stays explicitly separate from captured mock responses.
 
 Real-bank adapters, authorization, certificates/signing and cross-bank quality comparisons require bank setup and implementation against the assigned contracts. Gringott authorization is simulated. No customer data is served. Mock and platform fixture results are not bank security results or Georgian JWS certification.
 

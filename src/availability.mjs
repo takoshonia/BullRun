@@ -8,7 +8,7 @@ export function parseTargets(raw='[]') {
  const list=JSON.parse(raw);
  if(!Array.isArray(list)||list.length>10)throw Error('Configure at most 10 synthetic monitoring targets');
  const seen=new Set();
- return list.map(t=>{
+ return list.filter(t=>t.monitor!==false).map(t=>{
   const url=new URL(t.origin);
   if(!/^[a-z0-9-]{1,50}$/.test(t.id)||seen.has(t.id)||!['http:','https:'].includes(url.protocol)||url.username||url.password||url.pathname!=='/'||url.search||url.hash)throw Error('Invalid synthetic monitor target');
   seen.add(t.id);

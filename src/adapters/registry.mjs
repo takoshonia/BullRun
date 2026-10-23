@@ -1,13 +1,22 @@
 import {MockTransport} from './http-transport.mjs';
 import {GringottAdapter,GRINGOTT_VERSION} from './gringott.mjs';
+import {TbcMockAdapter,TBC_MOCK_VERSION,mapTbcMock} from './tbc-mock.mjs';
+import {mapGringott} from './gringott.mjs';
+
+const implementations=new Map([[GRINGOTT_VERSION,GringottAdapter],[TBC_MOCK_VERSION,TbcMockAdapter]]);
+export function mapAdapter(version,operation,body){
+ if(version===GRINGOTT_VERSION)return mapGringott(operation,body);
+ if(version===TBC_MOCK_VERSION)return mapTbcMock(operation,body);
+ throw Error('Unknown evidence adapter version');
+}
 
 export function adapterTargets(raw=process.env.GEOBRIDGE_MOCK_TARGETS||'[]'){
  const targets=JSON.parse(raw);
  if(!Array.isArray(targets)||targets.length>10)throw Error('Invalid configured mock adapters');
- const result=targets.filter(t=>t.adapter===GRINGOTT_VERSION||(!t.adapter&&t.id==='gringott')).map(t=>{
+ const result=targets.filter(t=>implementations.has(t.adapter)||(!t.adapter&&t.id==='gringott')).map(t=>{
   const url=new URL(t.origin);
   if(!/^[a-z0-9-]{1,50}$/.test(t.id)||!['http:','https:'].includes(url.protocol)||url.username||url.password||url.pathname!=='/'||url.search||url.hash)throw Error('Invalid configured Gringott mock origin');
-  return {id:'mock-'+t.id,name:t.name||'Gringott mock',origin:url.origin,tenant:t.tenant||'bank-demo',adapter:GRINGOTT_VERSION};
+  return {id:'mock-'+t.id,name:t.name||t.id+' mock',origin:url.origin,tenant:t.tenant||'bank-demo',adapter:t.adapter||GRINGOTT_VERSION};
  });
  if(new Set(result.map(t=>t.id)).size!==result.length)throw Error('Duplicate adapter target');
  return result;
@@ -15,9 +24,9 @@ export function adapterTargets(raw=process.env.GEOBRIDGE_MOCK_TARGETS||'[]'){
 export function createAdapter(connectionId,options={}){
  const target=adapterTargets().find(t=>t.id===connectionId);
  if(!target)throw Error('BANK_NOT_CONNECTED');
- const timeoutMs=Number(process.env.GEOBRIDGE_GRINGOTT_TIMEOUT_MS||2000);
+ const timeoutMs=Number(target.adapter===TBC_MOCK_VERSION?(process.env.GEOBRIDGE_TBC_MOCK_TIMEOUT_MS||10000):(process.env.GEOBRIDGE_GRINGOTT_TIMEOUT_MS||2000));
  if(!Number.isInteger(timeoutMs)||timeoutMs<200||timeoutMs>10000)throw Error('Gringott deadline must be 200–10000ms');
- return new GringottAdapter(new MockTransport(target.origin,{timeoutMs,...options}));
+ return new (implementations.get(target.adapter))(new MockTransport(target.origin,{timeoutMs,...options}));
 }
 export function seedAdapterConnections({get,put}){
  for(const target of adapterTargets()){

@@ -22,4 +22,6 @@ test('all workspace views render without template exceptions; unsafe names are e
  ui.state.page='explorer';ui.render();assert(element('#app').innerHTML.includes('Grant simulated consent'));
  ui.state.gringott={connection:'mock-gringott',consentId:'private-reference',expiresAt:new Date().toISOString(),accounts:[{accountId:'<script>bad</script>',currency:'GEL'}]};
  ui.render();assert(element('#app').innerHTML.includes('All transaction pages'));assert(!element('#app').innerHTML.includes('<script>bad'));
+ ui.state.workspace.catalog.push({id:'mock-tbc',name:'TBC independent mock',status:'mock_configured',capabilities:{accounts:'mock_supported'}});
+ ui.state.gringott=null;ui.render();assert(element('#app').innerHTML.includes('TBC independent mock'));assert(element('#app').innerHTML.includes('value="mock-tbc"'));
 });
