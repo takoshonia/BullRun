@@ -2,11 +2,13 @@ import {MockTransport} from './http-transport.mjs';
 import {GringottAdapter,GRINGOTT_VERSION} from './gringott.mjs';
 import {TbcMockAdapter,TBC_MOCK_VERSION,mapTbcMock} from './tbc-mock.mjs';
 import {mapGringott} from './gringott.mjs';
+import {BogMockAdapter,BOG_MOCK_VERSION,mapBogMock} from './bog-mock.mjs';
 
-const implementations=new Map([[GRINGOTT_VERSION,GringottAdapter],[TBC_MOCK_VERSION,TbcMockAdapter]]);
+const implementations=new Map([[GRINGOTT_VERSION,GringottAdapter],[TBC_MOCK_VERSION,TbcMockAdapter],[BOG_MOCK_VERSION,BogMockAdapter]]);
 export function mapAdapter(version,operation,body){
  if(version===GRINGOTT_VERSION)return mapGringott(operation,body);
  if(version===TBC_MOCK_VERSION)return mapTbcMock(operation,body);
+ if(version===BOG_MOCK_VERSION)return mapBogMock(operation,body);
  throw Error('Unknown evidence adapter version');
 }
 
@@ -24,8 +26,8 @@ export function adapterTargets(raw=process.env.GEOBRIDGE_MOCK_TARGETS||'[]'){
 export function createAdapter(connectionId,options={}){
  const target=adapterTargets().find(t=>t.id===connectionId);
  if(!target)throw Error('BANK_NOT_CONNECTED');
- const timeoutMs=Number(target.adapter===TBC_MOCK_VERSION?(process.env.GEOBRIDGE_TBC_MOCK_TIMEOUT_MS||10000):(process.env.GEOBRIDGE_GRINGOTT_TIMEOUT_MS||2000));
- if(!Number.isInteger(timeoutMs)||timeoutMs<200||timeoutMs>10000)throw Error('Gringott deadline must be 200–10000ms');
+ const timeoutMs=Number(target.adapter===TBC_MOCK_VERSION?(process.env.GEOBRIDGE_TBC_MOCK_TIMEOUT_MS||10000):target.adapter===BOG_MOCK_VERSION?(process.env.GEOBRIDGE_BOG_MOCK_TIMEOUT_MS||2000):(process.env.GEOBRIDGE_GRINGOTT_TIMEOUT_MS||2000));
+ if(!Number.isInteger(timeoutMs)||timeoutMs<200||timeoutMs>10000)throw Error('Mock deadline must be 200–10000ms');
  return new (implementations.get(target.adapter))(new MockTransport(target.origin,{timeoutMs,...options}));
 }
 export function seedAdapterConnections({get,put}){
