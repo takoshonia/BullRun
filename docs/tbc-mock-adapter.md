@@ -22,6 +22,8 @@ Accounts and balances use the common strict mapper. Transactions use booked/pend
 
 The shared capture runner selects this adapter and captures accounts, balances and transactions; negative unauthenticated/unknown-account/revoked-consent checks; mock problem code/detail; OpenAPI hash; and measured HTTP samples. Source rules run only when approved for the selected `xs2a-0.8` profile. Mock contract results are not official TBC compliance findings. Internet-hosted TBC mock and same-server Gringott timings are not directly comparable bank performance measurements.
 
+Public-deployment smoke testing observed HTTP 404 for an unauthenticated accounts request and HTTP 503 for an unknown account while positive AIS reads succeeded. These remain visible contract findings rather than being converted to PASS. A 404 denial alone does not demonstrate unauthorized access; 503 may reflect the mock's current injected failure state. The adapter never changes global mock faults to obtain a passing report.
+
 ## UI and tests
 
 Connections -> TBC independent mock -> Run HTTP audit. Existing Findings/Quality/JSON/CSV exports apply. TPP explorer -> choose the TBC connection -> Grant simulated consent -> Accounts/Balances/Transactions -> Revoke consent.

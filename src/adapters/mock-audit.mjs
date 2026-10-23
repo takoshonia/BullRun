@@ -17,7 +17,7 @@ export async function captureMock(connection){
   if(!/^3\./.test(specification.openapi||'')||!specification.paths)throw Error('Unexpected mock OpenAPI contract');
   specHash=sha(specification);
   const unauthorized=await adapter.transport.request(base+'/accounts',{operation:'accounts',kind:'negative'});
-  finding('AUTH','Unauthenticated AIS request is rejected',[401,403].includes(unauthorized.status),'401 or 403',String(unauthorized.status),'security');
+  finding('AUTH','Unauthenticated AIS request returns expected denial status',[401,403].includes(unauthorized.status),'401 or 403 (a different denial status does not alone prove unauthorized data access)',String(unauthorized.status),'security');
   if(!unauthorized.transportError)finding('ERROR-SHAPE','Mock errors contain documented code and message fields',isTbc?typeof unauthorized.body?.code==='string'&&typeof unauthorized.body?.detail==='string':typeof unauthorized.body?.error?.code==='string'&&typeof unauthorized.body?.error?.message==='string',isTbc?'Mock problem code and detail':'Gringott error.code and error.message','Mock error shape inspected');
   consent=await adapter.createConsent();consent=await adapter.completeAuthorization(consent);
   const status=await adapter.consentStatus(consent);
