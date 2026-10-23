@@ -1,7 +1,6 @@
 import crypto from 'node:crypto';
 import {createAdapter,adapterTargets} from './registry.mjs';
 import {requireResponse} from './http-transport.mjs';
-import {mapGringott} from './gringott.mjs';
 
 const error=(status,message)=>Object.assign(Error(message),{status});
 
@@ -18,10 +17,10 @@ export function createCommonAIS(){
    const a=adapter(connection);pending++;pendingOwners.set(user.id,(pendingOwners.get(user.id)||0)+1);let upstream;
    try{
     upstream=await a.createConsent();upstream=await a.completeAuthorization(upstream);
-    const accounts=mapGringott('accounts',requireResponse(await a.listAccounts(upstream))).accounts;
+    const accounts=a.map('accounts',requireResponse(await a.listAccounts(upstream))).accounts;
     if(accounts.length>10)throw error(422,'Mock account budget exceeded');
     const id=crypto.randomUUID();sessions.set(id,{...upstream,owner:user.id,tenant:user.tenant,connection,accounts:new Set(accounts.map(x=>x.accountId))});
-    return {consentId:id,expiresAt:new Date(upstream.expiresAt).toISOString(),accounts,synthetic:true,authorization:'Gringott simulation only'};
+    return {consentId:id,expiresAt:new Date(upstream.expiresAt).toISOString(),accounts,synthetic:true,authorization:a.authorization};
    }catch(e){if(upstream)try{await a.revokeConsent(upstream)}catch{}throw e;}finally{pending--;const count=pendingOwners.get(user.id)-1;if(count)pendingOwners.set(user.id,count);else pendingOwners.delete(user.id);}
   },
   async revoke(user,connection,id){const s=session(user,connection,id);sessions.delete(id);await adapter(connection).revokeConsent(s);return {revoked:true,synthetic:true};},
@@ -29,14 +28,14 @@ export function createCommonAIS(){
    const s=session(user,connection,id),a=adapter(connection);
    if(account&&!s.accounts.has(account))throw error(403,'Account not included in this consent');
    const current=await a.consentStatus(s);
-   if(current.consentStatus!=='valid'||Date.parse(current.validUntil)<=Date.now()){sessions.delete(id);throw error(403,'Upstream consent is not valid');}
+   if(current.consentStatus!=='valid'||!Number.isFinite(Date.parse(current.validUntil))||Date.parse(current.validUntil)<=Date.now()){sessions.delete(id);throw error(403,'Upstream consent is not valid');}
    let data;
-   if(operation==='accounts')data=mapGringott('accounts',requireResponse(await a.listAccounts(s)));
-   else if(operation==='balances')data=mapGringott('balances',requireResponse(await a.getBalances(s,account)));
+   if(operation==='accounts')data=a.map('accounts',requireResponse(await a.listAccounts(s)));
+   else if(operation==='balances')data=a.map('balances',requireResponse(await a.getBalances(s,account)));
    else if(operation==='transactions')data=(await a.listTransactions(s,account)).data;
    else throw error(404,'Unsupported common operation');
    session(user,connection,id); // Reject a response if local revocation raced the upstream read.
-   return {data,meta:{synthetic:true,evidenceMode:'mock_http',connectionId:connection,adapterVersion:'gringott-mock-v1',notice:'Synthetic API data; not an official bank observation.'}};
+   return {data,meta:{synthetic:true,evidenceMode:'mock_http',connectionId:connection,adapterVersion:a.version,notice:'Synthetic API data; not an official bank observation.'}};
   },
   clearOwner(owner){for(const [id,s]of sessions)if(s.owner===owner)sessions.delete(id);}
  };

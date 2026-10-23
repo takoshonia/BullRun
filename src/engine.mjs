@@ -4,9 +4,9 @@ import {all,get,put,event,root} from './store.mjs';
 import {assurance} from './assurance.mjs';
 import {reviewSpecification} from './spec-audit.mjs';
 import {id,sha,redact,normalize,metrics} from './security.mjs';
-import {captureGringott} from './adapters/gringott-audit.mjs';
-import {adapterTargets} from './adapters/registry.mjs';
-import {mapGringott} from './adapters/gringott.mjs';
+import {captureMock} from './adapters/mock-audit.mjs';
+import {adapterTargets,mapAdapter} from './adapters/registry.mjs';
+
 export function validatePack(p){
  if(!p||p.synthetic!==true)throw Error('Only explicitly synthetic evidence is accepted');
  if(!['synthetic_fixture','sandbox_capture'].includes(p.mode))throw Error('Evidence mode must be synthetic_fixture or sandbox_capture');
@@ -42,7 +42,7 @@ export async function executeRun(run){
  const target=run.kind==='bank'&&adapterTargets().find(t=>t.id===run.connectionId);
  if(target){
   const connection=get('connections',run.connectionId);if(connection?.tenant!==target.tenant)throw Error('Configured adapter scope mismatch');
-  const capture=await captureGringott(connection);output.push(...capture.results);
+  const capture=await captureMock(connection);output.push(...capture.results);
   pack=put('packs',{...capture.pack,id:id(),tenant:run.tenant,createdAt:new Date().toISOString(),hash:sha(capture.pack)});
   run={...run,packId:pack.id};
  }
@@ -51,12 +51,12 @@ export async function executeRun(run){
  const obs=pack.observations.filter(o=>(r.operation==='all'||r.operation===o.operation)&&(pack.mode!=='mock_http'||o.status>0&&o.kind==='positive'));if(!obs.length){output.push({...r,verdict:'NOT_ASSESSED',expected:'Matching observation',observed:'No selected-operation evidence'});continue}
  for(const [i,o]of obs.entries())output.push({...r,...evaluate(r,o),observationIndex:pack.observations.indexOf(o),id:r.id+'-'+i,ruleId:r.id});}
  // Always enforce the common contract independently of standards approval.
- for(const [i,o]of pack.observations.entries()){if(o.status>=400||o.status===0||o.operation==='consent'||pack.mode==='mock_http'&&o.kind!=='positive')continue;try{(pack.mode==='mock_http'?mapGringott:normalize)(o.operation,o.body);output.push({id:'MAP-'+i,title:'Common '+o.operation+' mapping',layer:'compatibility',basis:'platform_contract',verdict:'PASS',expected:'Exact semantic mapping',observed:'Required common fields preserved',observationIndex:i})}catch(e){output.push({id:'MAP-'+i,title:'Common '+o.operation+' mapping',layer:'compatibility',basis:'platform_contract',verdict:'FAIL',severity:'high',expected:'Safe common representation',observed:e.message,fix:'Correct the original fields or implement a reviewed explicit mapping. Never invent missing values.',observationIndex:i})}}
+ for(const [i,o]of pack.observations.entries()){if(o.status>=400||o.status===0||o.operation==='consent'||pack.mode==='mock_http'&&o.kind!=='positive')continue;try{(pack.mode==='mock_http'?mapAdapter(pack.adapterVersion,o.operation,o.body):normalize(o.operation,o.body));output.push({id:'MAP-'+i,title:'Common '+o.operation+' mapping',layer:'compatibility',basis:'platform_contract',verdict:'PASS',expected:'Exact semantic mapping',observed:'Required common fields preserved',observationIndex:i})}catch(e){output.push({id:'MAP-'+i,title:'Common '+o.operation+' mapping',layer:'compatibility',basis:'platform_contract',verdict:'FAIL',severity:'high',expected:'Safe common representation',observed:e.message,fix:'Correct the original fields or implement a reviewed explicit mapping. Never invent missing values.',observationIndex:i})}}
  }
  if(run.kind==='bank'&&!target)for(const layer of ['compatibility','reliability','latency','security'])output.push({id:'BANK-'+layer,title:'Bank '+layer+' checks',layer,verdict:'BLOCKED',expected:'Authorized sandbox with pinned profile and verified adapter',observed:'Bank access and adapter configuration pending',basis:'bank_connection'});
  const groups=pack?['accounts','balances','transactions','consent'].map(operation=>({operation,...metrics(pack.samples.filter(s=>s.operation===operation))})):[];
  const counts={};for(const r of output)counts[r.verdict]=(counts[r.verdict]||0)+1;
  const timestamps=pack?.samples.filter(s=>s.kind==='positive').map(s=>Date.parse(s.timestamp))||[];
- const result={...run,status:'completed',progress:100,startedAt:start,finishedAt:new Date().toISOString(),results:output,counts,metrics:groups,measurementWindow:timestamps.length?{start:new Date(Math.min(...timestamps)).toISOString(),end:new Date(Math.max(...timestamps)).toISOString(),environment:pack.environment,captureMethod:pack.captureMethod}:null,evidenceMode:run.kind==='platform'?'local_platform_controls':run.kind==='spec'?'specification_only':pack?.mode||'not_connected',rulesetHash:sha(ruleSnapshot),build:'0.1.0',adapterVersion:pack?.adapterVersion||null,specHash:pack?.specHash||null,limitations:['Selected checks only; not overall Georgian compliance or certification.','Platform fixtures do not establish bank conformance.','No production uptime inferred from short observations.',pack?.mode==='mock_http'?'Gringott simulated OAuth, no mTLS/JWS. HTTP timings are same-host synthetic observations, not real bank performance.':'Imported samples are uploader-declared, not independently authenticated measurements.'],evidenceHash:pack?sha(pack):null};
+ const result={...run,status:'completed',progress:100,startedAt:start,finishedAt:new Date().toISOString(),results:output,counts,metrics:groups,measurementWindow:timestamps.length?{start:new Date(Math.min(...timestamps)).toISOString(),end:new Date(Math.max(...timestamps)).toISOString(),environment:pack.environment,captureMethod:pack.captureMethod}:null,evidenceMode:run.kind==='platform'?'local_platform_controls':run.kind==='spec'?'specification_only':pack?.mode||'not_connected',rulesetHash:sha(ruleSnapshot),build:'0.1.0',adapterVersion:pack?.adapterVersion||null,specHash:pack?.specHash||null,limitations:['Selected checks only; not overall Georgian compliance or certification.','Platform fixtures do not establish bank conformance.','No production uptime inferred from short observations.',pack?.mode==='mock_http'?'Independent mock simulated authorization, no mTLS/JWS. Synthetic HTTP timings depend on hosting and network; they do not establish real bank performance.':'Imported samples are uploader-declared, not independently authenticated measurements.'],evidenceHash:pack?sha(pack):null};
  put('runs',result);event('worker','run_completed',run.id,{counts});return result;
 }

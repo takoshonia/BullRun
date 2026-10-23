@@ -10,7 +10,8 @@ export class MockTransport {
   this.origin=new URL(origin).origin;this.timeoutMs=timeoutMs;this.signal=signal;
   this.onObservation=onObservation;this.remaining=maxRequests;
  }
- async request(path,{method='GET',body,token,operation='consent',kind='setup',sensitive=false}={}){
+ async request(path,{method='GET',body,token,consentId,operation='consent',kind='setup',sensitive=false,maxResponseBytes=1_000_000}={}){
+  if(!Number.isInteger(maxResponseBytes)||maxResponseBytes<1||maxResponseBytes>2_000_000)throw Error('Invalid response size budget');
   if(this.signal?.aborted)throw this.signal.reason;
   if(--this.remaining<0)throw Error('Mock request budget exhausted');
   const url=new URL(path,this.origin);
@@ -19,10 +20,10 @@ export class MockTransport {
   const response=await new Promise(resolve=>{
    let settled=false,timer;
    const finish=result=>{if(settled)return;settled=true;clearTimeout(timer);this.signal?.removeEventListener('abort',abort);resolve(result);};
-   const req=(url.protocol==='https:'?https:http).request(url,{method,headers:{Accept:'application/json','X-Request-ID':requestId,...(body?{'Content-Type':'application/json'}:{}),...(token?{Authorization:'Bearer '+token}:{})}},res=>{
+   const req=(url.protocol==='https:'?https:http).request(url,{method,headers:{Accept:'application/json','X-Request-ID':requestId,...(body?{'Content-Type':'application/json'}:{}),...(token?{Authorization:'Bearer '+token}:{}),...(consentId?{'Consent-ID':consentId}:{})}},res=>{
     const chunks=[];let bytes=0;
     const headers={'content-type':res.headers['content-type']||'','x-request-id':res.headers['x-request-id']||''};
-    res.on('data',chunk=>{if(settled)return;bytes+=chunk.length;if(bytes>1_000_000){finish({status:res.statusCode,headers,transportError:'RESPONSE_TOO_LARGE'});res.destroy();req.destroy();}else chunks.push(chunk);});
+    res.on('data',chunk=>{if(settled)return;bytes+=chunk.length;if(bytes>maxResponseBytes){finish({status:res.statusCode,headers,transportError:'RESPONSE_TOO_LARGE'});res.destroy();req.destroy();}else chunks.push(chunk);});
     res.on('end',()=>{const raw=Buffer.concat(chunks);let data;try{data=JSON.parse(raw.toString('utf8'))}catch{}
      finish({status:res.statusCode,headers,body:data,bodyHash:crypto.createHash('sha256').update(raw).digest('hex'),location:res.headers.location,transportError:data===undefined&&res.statusCode!==204&&res.statusCode!==302?'INVALID_JSON':undefined});
     });
