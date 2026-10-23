@@ -3,10 +3,18 @@ export const contract={openapi:'3.1.0',info:{title:'GeoBridge Common AIS API',ve
 export class BankAdapter {
  async capabilities(){throw Error('BANK_NOT_CONNECTED')}
  async createConsent(){throw Error('BANK_NOT_CONNECTED')}
+ async completeAuthorization(){throw Error('BANK_NOT_CONNECTED')}
  async consentStatus(){throw Error('BANK_NOT_CONNECTED')}
  async revokeConsent(){throw Error('BANK_NOT_CONNECTED')}
  async listAccounts(){throw Error('BANK_NOT_CONNECTED')}
  async getBalances(){throw Error('BANK_NOT_CONNECTED')}
  async listTransactions(){throw Error('BANK_NOT_CONNECTED')}
+ async listTransactionsPage(){throw Error('BANK_NOT_CONNECTED')}
  async healthObservation(){throw Error('BANK_NOT_CONNECTED')}
 }
+
+// Same-origin deployment URL; Gringott implements this mock-only consent extension.
+contract.servers=[{url:'/'}];
+contract.info.description='Common AIS contract. Explicit synthetic adapters may execute mock calls; real-bank integrations remain blocked.';
+contract.paths['/bridge/v1/connections/{connectionId}/consents']={post:{summary:'Grant synthetic mock consent (not real OAuth)',parameters:[{name:'connectionId',in:'path',required:true,schema:{type:'string'}}],responses:{201:{description:'Owner-scoped consent reference; upstream tokens never returned'},503:{description:'BANK_NOT_CONNECTED'}}}};
+contract.paths['/bridge/v1/connections/{connectionId}/consents/{consentId}']={delete:{summary:'Revoke owner-scoped mock consent',parameters:['connectionId','consentId'].map(name=>({name,in:'path',required:true,schema:{type:'string'}})),responses:{200:{description:'Consent locally invalidated and upstream revocation confirmed'},403:{description:'Consent outside owner scope'}}}};

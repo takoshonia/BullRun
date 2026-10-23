@@ -20,6 +20,6 @@ export function workspacePayload(user,{records,profiles,sources,aiConfigured,can
   gates:manager?own('gates'):[],
   updates:standards?records('updates'):user.role==='bank'?records('updates').filter(x=>x.status==='approved'):[],
   ai:{configured:aiConfigured},
-  capabilities:{bankRuntime:false,reason:'Bank adapters and authorization are pending'}
+  capabilities:{bankRuntime:false,mockRuntime:records('connections').some(c=>c.adapter==='gringott-mock-v1'),reason:'Only explicitly configured synthetic adapters can execute; real bank authorization is pending'}
  };
 }
