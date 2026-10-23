@@ -4,6 +4,9 @@ import {all,get,put,event,root} from './store.mjs';
 import {assurance} from './assurance.mjs';
 import {reviewSpecification} from './spec-audit.mjs';
 import {id,sha,redact,normalize,metrics} from './security.mjs';
+import {captureGringott} from './adapters/gringott-audit.mjs';
+import {adapterTargets} from './adapters/registry.mjs';
+import {mapGringott} from './adapters/gringott.mjs';
 export function validatePack(p){
  if(!p||p.synthetic!==true)throw Error('Only explicitly synthetic evidence is accepted');
  if(!['synthetic_fixture','sandbox_capture'].includes(p.mode))throw Error('Evidence mode must be synthetic_fixture or sandbox_capture');
@@ -31,21 +34,29 @@ export function evaluate(rule,o){const b=o.body;const a=b.accounts||[];const val
  case 'DOM-DEPOSIT':return o.accountCategory==='SVGS'?fail(values.length>0&&values.every(x=>/^\d+(\.\d+)?$/.test(x.balanceAmount?.amount||'')),'Deposit amount is nonnegative','Deposit balance sign checked'):{verdict:'NOT_APPLICABLE',expected:'Deposit balance',observed:'No SVGS account-category evidence'};
  default:return {verdict:'NOT_ASSESSED',expected:'Authorized lifecycle test',observed:'Requires bank adapter and controlled customer flow'};
 }}
-export function executeRun(run){
- const output=[];const start=new Date().toISOString();
+export async function executeRun(run){
+ const output=[];const start=new Date().toISOString();const ruleSnapshot=all('rules');
  if(run.kind==='platform')output.push(...assurance());
- if(run.kind==='spec'){const uploaded=get('specs',run.connectionId);if(!uploaded)throw Error('No specification uploaded');output.push(...reviewSpecification(uploaded.spec,all('rules').filter(r=>r.profile===run.profile)));}
- let pack=null;if(run.packId){pack=get('packs',run.packId);if(!pack)throw Error('Evidence pack no longer exists');const rules=all('rules').filter(x=>x.profile===pack.profile);
+ if(run.kind==='spec'){const uploaded=get('specs',run.connectionId);if(!uploaded)throw Error('No specification uploaded');output.push(...reviewSpecification(uploaded.spec,ruleSnapshot.filter(r=>r.profile===run.profile)));}
+ let pack=null;
+ const target=run.kind==='bank'&&adapterTargets().find(t=>t.id===run.connectionId);
+ if(target){
+  const connection=get('connections',run.connectionId);if(connection?.tenant!==target.tenant)throw Error('Configured adapter scope mismatch');
+  const capture=await captureGringott(connection);output.push(...capture.results);
+  pack=put('packs',{...capture.pack,id:id(),tenant:run.tenant,createdAt:new Date().toISOString(),hash:sha(capture.pack)});
+  run={...run,packId:pack.id};
+ }
+ if(run.packId){pack=pack||get('packs',run.packId);if(!pack)throw Error('Evidence pack no longer exists');const rules=ruleSnapshot.filter(x=>x.profile===pack.profile);
  for(const r of rules){if(r.status!=='approved'){output.push({...r,id:r.id,verdict:'NEEDS_REVIEW',expected:'Human-approved rule and applicability',observed:'Rule is a draft; not executed'});continue}
- const obs=pack.observations.filter(o=>r.operation==='all'||r.operation===o.operation);if(!obs.length){output.push({...r,verdict:'NOT_ASSESSED',expected:'Matching observation',observed:'No selected-operation evidence'});continue}
+ const obs=pack.observations.filter(o=>(r.operation==='all'||r.operation===o.operation)&&(pack.mode!=='mock_http'||o.status>0&&o.kind==='positive'));if(!obs.length){output.push({...r,verdict:'NOT_ASSESSED',expected:'Matching observation',observed:'No selected-operation evidence'});continue}
  for(const [i,o]of obs.entries())output.push({...r,...evaluate(r,o),observationIndex:pack.observations.indexOf(o),id:r.id+'-'+i,ruleId:r.id});}
  // Always enforce the common contract independently of standards approval.
- for(const [i,o]of pack.observations.entries()){if(o.status>=400||o.operation==='consent')continue;try{normalize(o.operation,o.body);output.push({id:'MAP-'+i,title:'Common '+o.operation+' mapping',layer:'compatibility',basis:'platform_contract',verdict:'PASS',expected:'Exact semantic mapping',observed:'Required common fields preserved',observationIndex:i})}catch(e){output.push({id:'MAP-'+i,title:'Common '+o.operation+' mapping',layer:'compatibility',basis:'platform_contract',verdict:'FAIL',severity:'high',expected:'Safe common representation',observed:e.message,fix:'Correct the original fields or implement a reviewed explicit mapping. Never invent missing values.',observationIndex:i})}}
+ for(const [i,o]of pack.observations.entries()){if(o.status>=400||o.status===0||o.operation==='consent'||pack.mode==='mock_http'&&o.kind!=='positive')continue;try{(pack.mode==='mock_http'?mapGringott:normalize)(o.operation,o.body);output.push({id:'MAP-'+i,title:'Common '+o.operation+' mapping',layer:'compatibility',basis:'platform_contract',verdict:'PASS',expected:'Exact semantic mapping',observed:'Required common fields preserved',observationIndex:i})}catch(e){output.push({id:'MAP-'+i,title:'Common '+o.operation+' mapping',layer:'compatibility',basis:'platform_contract',verdict:'FAIL',severity:'high',expected:'Safe common representation',observed:e.message,fix:'Correct the original fields or implement a reviewed explicit mapping. Never invent missing values.',observationIndex:i})}}
  }
- if(run.kind==='bank')for(const layer of ['compatibility','reliability','latency','security'])output.push({id:'BANK-'+layer,title:'Bank '+layer+' checks',layer,verdict:'BLOCKED',expected:'Authorized sandbox with pinned profile and verified adapter',observed:'Bank access and adapter configuration pending',basis:'bank_connection'});
+ if(run.kind==='bank'&&!target)for(const layer of ['compatibility','reliability','latency','security'])output.push({id:'BANK-'+layer,title:'Bank '+layer+' checks',layer,verdict:'BLOCKED',expected:'Authorized sandbox with pinned profile and verified adapter',observed:'Bank access and adapter configuration pending',basis:'bank_connection'});
  const groups=pack?['accounts','balances','transactions','consent'].map(operation=>({operation,...metrics(pack.samples.filter(s=>s.operation===operation))})):[];
  const counts={};for(const r of output)counts[r.verdict]=(counts[r.verdict]||0)+1;
  const timestamps=pack?.samples.filter(s=>s.kind==='positive').map(s=>Date.parse(s.timestamp))||[];
- const result={...run,status:'completed',progress:100,startedAt:start,finishedAt:new Date().toISOString(),results:output,counts,metrics:groups,measurementWindow:timestamps.length?{start:new Date(Math.min(...timestamps)).toISOString(),end:new Date(Math.max(...timestamps)).toISOString(),environment:pack.environment,captureMethod:pack.captureMethod}:null,evidenceMode:run.kind==='platform'?'local_platform_controls':run.kind==='spec'?'specification_only':pack?.mode||'not_connected',rulesetHash:sha(all('rules')),build:'0.1.0',limitations:['Selected checks only; not overall Georgian compliance or certification.','Platform fixtures do not establish bank conformance.','No production uptime inferred from short observations.','Imported samples are uploader-declared, not independently authenticated measurements.'],evidenceHash:pack?sha(pack):null};
+ const result={...run,status:'completed',progress:100,startedAt:start,finishedAt:new Date().toISOString(),results:output,counts,metrics:groups,measurementWindow:timestamps.length?{start:new Date(Math.min(...timestamps)).toISOString(),end:new Date(Math.max(...timestamps)).toISOString(),environment:pack.environment,captureMethod:pack.captureMethod}:null,evidenceMode:run.kind==='platform'?'local_platform_controls':run.kind==='spec'?'specification_only':pack?.mode||'not_connected',rulesetHash:sha(ruleSnapshot),build:'0.1.0',adapterVersion:pack?.adapterVersion||null,specHash:pack?.specHash||null,limitations:['Selected checks only; not overall Georgian compliance or certification.','Platform fixtures do not establish bank conformance.','No production uptime inferred from short observations.',pack?.mode==='mock_http'?'Gringott simulated OAuth, no mTLS/JWS. HTTP timings are same-host synthetic observations, not real bank performance.':'Imported samples are uploader-declared, not independently authenticated measurements.'],evidenceHash:pack?sha(pack):null};
  put('runs',result);event('worker','run_completed',run.id,{counts});return result;
 }

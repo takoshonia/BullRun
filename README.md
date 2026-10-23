@@ -11,7 +11,7 @@ Evidence-led Georgian Open Banking assurance. Local hackathon application, build
 
 Requires Node.js 24 or newer (built-in SQLite). The launcher also detects the installed Codex runtime on this computer. No npm install or Python package installation is required.
 
-Run tests: `node --test tests/core.test.mjs tests/integration.test.mjs tests/ui-render.test.mjs`.
+Run tests: `node --test tests/*.test.mjs`. Gringott integration tests require the separate mock checkout; see [adapter setup](docs/gringott-adapter.md).
 
 ## What works
 
@@ -30,9 +30,9 @@ Run tests: `node --test tests/core.test.mjs tests/integration.test.mjs tests/ui-
 
 ## What deliberately does not pretend to work
 
-**No bank or mock bank runtime is connected.** This follows the agreed integration-later scope. All bank request endpoints return `BANK_NOT_CONNECTED`. The provided fictional evidence JSON is an offline response fixture, not a mock server or actual bank observation. It has no fabricated timing samples.
+**Configured Gringott mocks support actual HTTP audits and common AIS reads.** See [Gringott adapter setup and walkthrough](docs/gringott-adapter.md) for consent, accounts, balances, paginated transactions and report exports. Without configuration, bank request endpoints remain blocked. Imported fictional evidence stays explicitly separate from captured mock responses.
 
-Bank-specific adapters, consent authorization, token exchange, bank certificates/signing, real probes and true cross-bank quality comparisons require bank setup and implementation against the assigned contracts. No customer data is served. Platform fixture results are not bank security results or Georgian JWS certification.
+Real-bank adapters, authorization, certificates/signing and cross-bank quality comparisons require bank setup and implementation against the assigned contracts. Gringott authorization is simulated. No customer data is served. Mock and platform fixture results are not bank security results or Georgian JWS certification.
 
 Normative candidates start as **drafts**. A reviewer must read complete source conditions before activation. Some checks implement only an explicitly described sub-assertion. Missing source/error mappings/lifecycle evidence remain unassessed. Counts are not a percentage of all requirements.
 
@@ -42,7 +42,7 @@ Normative candidates start as **drafts**. A reviewer must read complete source c
 |---|---|
 | operator | Local full development access, including explicit standards-review privilege |
 | bank | Own registered connections, evidence, runs, reports, schedules and candidate decisions |
-| tpp | Published connection capability catalog, common mapping preview; bank data remains blocked |
+| tpp | Connection capability catalog, mapping preview and owner-scoped configured mock AIS consent/reads; real-bank data remains blocked |
 | reviewer | Read authorized `bank-*` scope diagnostics, not TPP records or transaction access |
 | standards | Source and candidate-rule review, draft change comparisons |
 
@@ -58,7 +58,7 @@ Copy `.env.example` to `.env` and configure `GEOBRIDGE_AI_KEY` and `GEOBRIDGE_AI
 
 `TPP mapping preview → deterministic common-contract mapper`
 
-`Future bank adapter → verified original bytes → auditor and explicit mapper (separate paths)`
+`Configured mock adapter → HTTP observations → independent auditor and explicit mapper → reports`
 
 Source: `src/server.mjs`, `store.mjs`, `engine.mjs`, `worker.mjs`, `rules.mjs`, `security.mjs`, `assurance.mjs`, `ai.mjs`. Frontend: dependency-free HTML/CSS/JS in `public/`.
 
