@@ -228,3 +228,4 @@
 /* Supplied GeoBridge logo artwork. */
 .brand-mark.brand-logo{display:block;object-fit:contain;padding:0;letter-spacing:normal;background:transparent;flex-shrink:0;aspect-ratio:1;width:40px;height:40px;border-radius:9px}
 .login-simple .brand-mark.brand-logo{width:44px;height:44px}
+.source-reference-links{display:flex;gap:8px;flex-wrap:wrap;margin:16px 0}.source-reference-links .btn{white-space:normal;text-align:left}

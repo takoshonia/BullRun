@@ -1,0 +1,35 @@
+[
+  {
+    "bank": "Bank of Georgia",
+    "url": "https://api.bog.ge/docs/en/openapi/openbanking.yaml",
+    "retrievedOn": "2026-10-24",
+    "sha256": "920775ee3293c4a297a4211bd2dd1c56469fa79c21fc0f02a449febb1cdaf369",
+    "publishedTitle": "NextGenPSD2 XS2A Framework",
+    "publishedVersion": "0.8",
+    "servers": [
+      {
+        "url": "https://xs2a-sandbox.bog.ge/0.8"
+      }
+    ],
+    "accountListPath": "/v1/accounts"
+  },
+  {
+    "bank": "Bank of Georgia",
+    "url": "https://api.bog.ge/docs/en/openapi/BG_oFA_AIS_recent.openapi.yaml",
+    "retrievedOn": "2026-10-24",
+    "sha256": "186a8e96efad246000b4505e7b8f922c2a379e613b78f6f3b10a764e35c75844",
+    "publishedTitle": "openFinance API Framework XS2A API as PSD2 Interface Implementation Guidelines - Account Information Service",
+    "publishedVersion": "2.3",
+    "servers": [
+      {
+        "url": "https://xs2a.bog.ge/0.8",
+        "description": "Production Environment"
+      },
+      {
+        "url": "https://xs2a-sandbox.bog.ge/0.8",
+        "description": "Sandbox Environment"
+      }
+    ],
+    "accountListPath": "/v2/accounts"
+  }
+]
