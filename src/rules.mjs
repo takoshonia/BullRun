@@ -1,3 +1,4 @@
+import {bankStandardCandidates} from './bank-standard-candidates.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 import {root,all,put} from './store.mjs';
@@ -26,7 +27,15 @@ const candidates=[
  ['CONS-REVOKED','Revoked consent denies access','cons','7.1.1','CONSENT_INVALID','consent','Requires a controlled lifecycle and source-specific error mapping; capture review cannot execute revocation.'],
  ['CONS-COEXIST','Conditional old/new consent coexistence','cons','10.1','NextGenPSD2 XS2A 1.3.x','consent','Only applicable when both interfaces and eligible account categories are supported.']
 ];
-export function initRules(){for(const [id,title,key,section,quote,operation,fix]of candidates){if(all('rules').some(r=>r.id===id))continue;
+export function seedBankStandardDrafts(){
+ const file='XS2A-0.8.RC3.txt',text=fs.readFileSync(path.join(root,'sources',file),'utf8');
+ const start=text.indexOf('GET /v1/accounts {query-parameters}'),end=text.indexOf('ანგარიშის დეტალები',start);const table=text.slice(start,end>start?end:undefined);
+ for(const candidate of bankStandardCandidates){if(all('rules').some(r=>r.id===candidate.id))continue;
+ const rows=table.split('\n'),rowIndex=rows.findIndex((row,i)=>row.trim()===candidate.field&&rows[i+1]?.trim()===candidate.sourceType&&rows[i+2]?.trim()===candidate.requirement);const quote=rowIndex>=0?rows.slice(rowIndex,rowIndex+3).join('\n'):candidate.field;
+ put('rules',{id:candidate.id,title:candidate.title,profile:'xs2a-0.8',layer:'compatibility',basis:'standard_candidate',source:file,sourceHash:sha(text),section:'9.3.3 — GET /v1/accounts, '+candidate.field+' table row',quote,quoteVerified:rowIndex>=0,status:'draft',operation:'accounts',fix:candidate.fix,severity:'medium',reviewNote:'Full table-row review required. Applies to legacy payment-account AIS only; do not apply to Open Finance /v2, loan/deposit AIS, or card-account lists. Independent mock results are not real-bank findings. Field syntax/presence is the only implemented assertion.',bankApplicability:['TBC Bank','Bank of Georgia'],normativeSourceUrl:'https://cdn.association.ge/static/openbanking/standards/pdf/NextGenPSD2_XS2A_Implementation_Guide_0.8.RC3_hL6sJdA.pdf',references:[{bank:'TBC Bank',url:'https://developers.tbcbank.ge/reference/aisreadaccountlist',label:'TBC — payment-account AIS /0.8/v1/accounts'},{bank:'Bank of Georgia',url:'https://api.bog.ge/docs/en/openapi/openbanking.yaml',label:'BOG — NextGenPSD2 XS2A Framework v0.8 OpenAPI'}],verifiedAt:'2026-10-24',createdAt:new Date().toISOString()});
+ }
+}
+export function initRules(){seedBankStandardDrafts();for(const [id,title,key,section,quote,operation,fix]of candidates){if(all('rules').some(r=>r.id===id))continue;
  const file=sourceNames[key]+'.txt',p=path.join(root,'sources',file);const text=fs.readFileSync(p,'utf8');let verified=text.includes(quote);const short=['currency','ownerName','details','cashAccountType','bic','CONSENT_INVALID','NextGenPSD2 XS2A 1.3.x'].includes(quote);
  put('rules',{id,title,profile:key==='xs2a'?'xs2a-0.8':'ofa-ais',layer:'compatibility',basis:'standard_candidate',source:file,sourceHash:sha(text),section,quote,quoteVerified:verified,reviewNote:short?'Field/table locator: human reviewer must inspect the complete row and conditions.':'Exact extracted source clause; human applicability review required.',status:'draft',operation,fix,severity:id==='AIS-OWNER'?'high':'medium',createdAt:new Date().toISOString()});}
 }
