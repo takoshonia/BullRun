@@ -10,7 +10,28 @@ const ago=v=>v?date(v):'Not measured';
 const button=(text,action,cls='',data='')=>`<button class="btn ${cls}" data-action="${action}" ${data}>${text}</button>`;
 const empty=(title,text,action='')=>`<div class="empty"><div class="empty-icon">${icon('audit')}</div><h3>${title}</h3><p>${text}</p>${action}</div>`;
 function toast(s){if(dialog.open){dialogNotice(s,false);return;}toastEl.textContent=s;toastEl.style.display='block';clearTimeout(toast.timer);toast.timer=setTimeout(()=>toastEl.style.display='none',5500)}
-async function api(url,options={}){const r=await fetch(url,{...options,headers:{'Content-Type':'application/json','X-CSRF-Token':state.csrf,...options.headers},body:options.body===undefined?undefined:JSON.stringify(options.body)});const data=await r.json();if(!r.ok){if(r.status===401&&url!='/api/login'){clearSession();login()}throw Object.assign(Error(data.error||'Request failed'),{fieldErrors:data.fieldErrors})}return data}
+const accountIdentity=user=>JSON.stringify([user.id,user.role,user.tenant]);
+async function api(url,options={}){
+ const mutation=options.method&&options.method!=='GET'&&url!=='/api/login';
+ let identity;
+ if(mutation&&state.user){
+  identity=accountIdentity(state.user);
+  // Cookies are shared across tabs; never submit under a different account.
+  const sessionResponse=await fetch('/api/me',{cache:'no-store'});
+  if(!sessionResponse.ok){if(sessionResponse.status===401){clearSession();login()}throw Error('Your session could not be verified. Sign in again before continuing.')}
+  const session=await sessionResponse.json();
+  if(!state.user||accountIdentity(state.user)!==identity||accountIdentity(session.user)!==identity){clearSession();login();throw Error('The signed-in account changed in another tab. Sign in again to continue with the intended account.')}
+  state.csrf=session.csrf;
+ }
+ const r=await fetch(url,{...options,headers:{'Content-Type':'application/json',...options.headers,'X-CSRF-Token':state.csrf,...(identity?{'X-GeoBridge-Account':identity}:{})},body:options.body===undefined?undefined:JSON.stringify(options.body)});
+ const data=await r.json();
+ if(!r.ok){
+  if((r.status===401&&url!=='/api/login')||data.code==='SESSION_CHANGED'){clearSession();login()}
+  throw Object.assign(Error(data.error||'Request failed'),{fieldErrors:data.fieldErrors});
+ }
+ return data;
+}
+
 function modal(title,body){document.querySelector('#dialog-body').innerHTML=`<div class="dialog-head"><h2>${title}</h2>${button(icon('close'),'close','quiet','aria-label="Close dialog"')}</div><div class="dialog-content"><div id="dialog-message" class="dialog-message" role="alert" tabindex="-1" hidden></div>${body}</div>`;dialog.showModal()}
 const summaryVerdictOrder=['PASS','FAIL','BLOCKED','NEEDS_REVIEW','NOT_ASSESSED','NOT_APPLICABLE'];
 const verdictOrder=['FAIL','BLOCKED','NEEDS_REVIEW','NOT_ASSESSED','NOT_APPLICABLE','PASS'];
