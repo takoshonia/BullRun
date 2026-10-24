@@ -16,6 +16,7 @@ test('all workspace views render without template exceptions; unsafe names are e
  await ui.reportHistory(run.id);assert(element('#dialog-body').innerHTML.includes('Generate English explanations'));
  ui.showReportExplanationJob({id:'job-1',status:'queued'});assert(element('#dialog-body').innerHTML.includes('Refresh status'));
  ui.showReportExplanationJob({id:'job-1',status:'completed',reportId:'report-2'});assert(element('#dialog-body').innerHTML.includes('Open report with explanations'));
+ assert(element('#dialog-body').innerHTML.includes('href="/api/reports/report-2/html"'),'completed job link must include its saved report ID');
  for(const page of ['overview','audit','connections','explorer','monitor','reports','standards','gate','activity','detail']){
   ui.state.page=page;ui.state.run=run;ui.render();const html=element('#app').innerHTML;assert(html.length>1500,page);assert(!html.includes('<img src=x'),page+' must escape imported names');assert(!html.includes('NaN'),page+' should not invent missing metrics');
  }
