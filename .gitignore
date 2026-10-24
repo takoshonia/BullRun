@@ -2,6 +2,7 @@ data/*
 !data/.gitkeep
 .env
 .env.*
+api-keys.env
 !.env.example
 *.log
 *.sqlite

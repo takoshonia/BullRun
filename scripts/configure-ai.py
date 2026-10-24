@@ -6,6 +6,8 @@ import pathlib
 import re
 import subprocess
 import uuid
+import sys
+import shutil
 from urllib.parse import urlparse
 
 os.umask(0o077)
@@ -35,11 +37,38 @@ def save():
     private_write('providers.json', json.dumps(data, indent=2) + '\n')
     print('Saved. Changes apply at runtime; no restart needed.')
 
+def edit_env():
+    filename = directory / 'api-keys.env'
+    if filename.is_symlink():
+        raise SystemExit('Refusing a symbolic-link credential file.')
+    editor = shutil.which('nano') or shutil.which('vi')
+    if not editor:
+        raise SystemExit('Install nano, or upload api-keys.env into the private ai directory.')
+    if not filename.exists():
+        private_write('api-keys.env', '# Paste provider keys here. Numbered suffixes are discovered automatically.\n# Enter exact model IDs; empty model values disable that provider.\nGEMINI_MODEL=\nGOOGLE_API_KEY=\nOPENAI_MODEL=\nOPENAI_API_KEY=\nCLAUDE_MODEL=\nANTHROPIC_API_KEY=\nGROK_MODEL=\nXAI_API_KEY=\n')
+    try:
+        subprocess.run([editor, str(filename)], check=True)
+    finally:
+        os.chmod(filename, 0o600)
+        os.chown(filename, 1000, 1000)
+    print('Saved private credential file. It takes precedence over menu connections; no restart needed.')
+    code = "import {aiConfig} from '/app/src/ai-config.mjs'; const c=aiConfig(); console.log(JSON.stringify({configuredConnections:c.connections.length,warnings:c.warnings||[]}))"
+    subprocess.run(['docker', 'exec', 'geobridge', 'node', '--input-type=module', '-e', code], check=True)
+
+if '--edit-env' in sys.argv:
+    edit_env()
+    raise SystemExit(0)
+
 while True:
-    print('\n1 Add/update connection  2 List  3 Disable  4 Enable  5 Move to first  6 Remove connection  0 Exit')
+    print('\n1 Add/update connection  2 List  3 Disable  4 Enable  5 Move to first  6 Remove connection  7 Edit bulk key file  0 Exit')
     action = input('Choose: ').strip()
     if action == '0':
         break
+    if action == '7':
+        edit_env()
+        continue
+    if (directory / 'api-keys.env').exists():
+        print('Bulk api-keys.env is active and takes precedence over menu connections. Use option 7 to edit it.')
     if action == '2':
         for index, entry in enumerate(data['connections'], 1):
             print(index, entry['id'], entry['provider'], entry['model'], 'enabled' if entry.get('enabled', True) else 'disabled')
