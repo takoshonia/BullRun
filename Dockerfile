@@ -1,6 +1,7 @@
 FROM node:24-bookworm-slim
 ENV NODE_ENV=production GEOBRIDGE_HOST=0.0.0.0 GEOBRIDGE_DATA_DIR=/app/data
 ENV GEOBRIDGE_AI_KEY_FILE=/app/data/ai/openai.key GEOBRIDGE_AI_MODEL_FILE=/app/data/ai/model
+ENV GEOBRIDGE_AI_POOL_FILE=/app/data/ai/providers.json
 WORKDIR /app
 COPY --chown=node:node package.json ./
 COPY --chown=node:node src ./src

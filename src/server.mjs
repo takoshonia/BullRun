@@ -1,3 +1,5 @@
+import {createProviderRouter} from './ai-providers.mjs';
+import {generateNarrative} from './report-narrative.mjs';
 import {aiConfig} from './ai-config.mjs';
 import {createNarrativeJobs} from './report-narrative-jobs.mjs';
 import {savedReports} from './report-store.mjs';
@@ -21,7 +23,8 @@ import {createAvailability,parseTargets} from './availability.mjs';
 import {seedAdapterConnections,adapterTargets} from './adapters/registry.mjs';
 import {createCommonAIS} from './adapters/common-ais.mjs';
 const commonAIS=createCommonAIS();
-const narrativeJobs=createNarrativeJobs(db,savedReports);
+const providerRouter=createProviderRouter({db});
+const narrativeJobs=createNarrativeJobs(db,savedReports,{generate:(snapshot,options)=>generateNarrative(snapshot,{...options,router:providerRouter})});
 const narrativeTick=setInterval(()=>{narrativeJobs.tick().catch(()=>console.error('Report explanation scheduler unavailable'))},1000);narrativeTick.unref();
 const availability=createAvailability({db,targets:parseTargets(process.env.GEOBRIDGE_MOCK_TARGETS)});
 availability.start();
@@ -128,7 +131,7 @@ const server=http.createServer(async(req,res)=>{
  if(type==='json')return send(res,200,r,'application/json; charset=utf-8',{'Content-Disposition':`attachment; filename="geobridge-${r.id}.json"`});
  if(type==='csv'){requireRole(u,'operator','bank');return send(res,200,csv(pack?.samples||[]),'text/csv; charset=utf-8',{'Content-Disposition':`attachment; filename="geobridge-${r.id}-samples.csv"`});}
  if(!['quality','incompatibility'].includes(type))throw error(404,'Export not found');res.setHeader('Content-Security-Policy',"default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'");return send(res,200,htmlReport(r,pack,type),'text/html; charset=utf-8',{'Content-Disposition':`inline; filename="geobridge-${type}.html"`})}
- if(action==='explain'&&method==='POST'){const b=await body(req);const f=r.results.find(x=>x.id===b.findingId);if(!f)throw error(404,'Finding not found');const key=sha({tenant:r.tenant,f,language:b.language,model:aiConfig().model,configured:aiConfig().configured,promptVersion:'finding-2'});const cached=get('explanations',key);if(cached)return send(res,200,{...cached,cached:true});const result=await explain(f,b.language);if(result.mode==='live_ai_advisory')put('explanations',{...result,id:key,tenant:r.tenant});event(u.id,'explanation_generated',r.id,{mode:result.mode});return send(res,200,result)}
+ if(action==='explain'&&method==='POST'){const b=await body(req);const f=r.results.find(x=>x.id===b.findingId);if(!f)throw error(404,'Finding not found');const key=sha({tenant:r.tenant,f,language:b.language,model:aiConfig().model,configured:aiConfig().configured,promptVersion:'finding-2'});const cached=get('explanations',key);if(cached)return send(res,200,{...cached,cached:true});const result=await explain(f,b.language,{router:providerRouter});if(result.mode==='live_ai_advisory')put('explanations',{...result,id:key,tenant:r.tenant});event(u.id,'explanation_generated',r.id,{mode:result.mode});return send(res,200,result)}
  }
  if(p.match(/^\/api\/packs\/[^/]+$/)&&method==='GET'){requireRole(u,'bank','operator');const pack=get('packs',p.split('/')[3]);if(!scope(u,pack))throw error(404,'Evidence not found');return send(res,200,pack)}
  if(p==='/api/normalize'&&method==='POST'){requireRole(u,'tpp','operator');const b=await body(req);if(b.synthetic!==true)throw error(400,'Synthetic data confirmation required');try{return send(res,200,{data:normalize(b.operation,b.body),meta:{mode:'local_mapping_preview',bankCall:false,adapterVersion:'common-contract-0.1.0'}})}catch(e){throw error(422,'UPSTREAM_CONTRACT_VIOLATION: '+e.message)}}
