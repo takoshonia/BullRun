@@ -143,7 +143,7 @@ function bankAuditContext(){
  if(state.user.role!=='bank')return '';
  const banks=state.workspace.connections.filter(c=>c.synthetic&&c.status==='mock_configured');
  if(!banks.length)return '<div class="notice amber"><div><b>Mock bank unavailable</b><p>Ask the GeoBridge team to check your bank configuration.</p></div></div>';
- return '<div class="card space bank-audit-context"><div class="pad">'+banks.map(c=>'<div><h2>'+e(c.name)+'</h2><p>'+connectionBadge(c)+' <span class="badge">Synthetic mock</span></p><p class="smalltext">Profile: '+e(profileLabel(c.profile))+'</p></div>').join('')+'</div></div>';
+ return '<section class="card bank-audit-context" aria-label="Bank audit context">'+banks.map(c=>'<div class="bank-audit-context-item"><div class="bank-audit-context-heading"><h2>'+e(c.name)+'</h2><div class="bank-audit-context-badges">'+connectionBadge(c)+' <span class="badge">Synthetic mock</span></div></div><p class="bank-audit-context-profile">Profile: '+e(profileLabel(c.profile))+'</p></div>').join('')+'</section>';
 }
 function audit(){
  const runs=state.workspace.runs.filter(r=>r.kind!=='platform');

@@ -379,3 +379,14 @@
   opacity: 1;
 }
 
+
+/* Keep bank context independent of the compact summary's negative top margin. */
+.bank-audit-context{margin:0 0 24px;background:linear-gradient(110deg,#f5f9f8,#fff 75%);border-color:#dce7e5;box-shadow:0 6px 22px #273f3f06}
+.bank-audit-context-item{padding:24px 28px}
+.bank-audit-context-item+.bank-audit-context-item{border-top:1px solid var(--line)}
+.bank-audit-context-heading{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.bank-audit-context-heading h2{margin:0;font-size:21px;line-height:1.35;overflow-wrap:anywhere}
+.bank-audit-context-badges{display:flex;align-items:center;flex-wrap:wrap;gap:8px}
+.bank-audit-context-profile{margin:14px 0 0;color:var(--muted);font-size:13px;line-height:1.6;overflow-wrap:anywhere}
+.bank-audit-context+.audit-summary{margin:0 0 26px;line-height:1.7}
+@media(max-width:640px){.bank-audit-context-item{padding:20px}.bank-audit-context-heading{align-items:flex-start;flex-direction:column;gap:12px}.bank-audit-context-heading h2{font-size:19px}}
