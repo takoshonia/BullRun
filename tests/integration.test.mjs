@@ -21,7 +21,7 @@ test('HTTP workflows: authentication, CSRF, worker, evidence, reports, isolation
   for(const name of ['operator','bank','tpp','reviewer','standards'])await login(name);
   const tppWorkspace=await call('tpp','/api/workspace');
   assert.equal(tppWorkspace.data.connections.length,0);assert.equal(tppWorkspace.data.rules.length,0);assert(tppWorkspace.data.catalog.length>0);assert(!JSON.stringify(tppWorkspace.data.catalog).includes('baseUrl'));
-  const standardsWorkspace=await call('standards','/api/workspace');
+  const standardsWorkspace=await call('standards','/api/workspace');const newDrafts=standardsWorkspace.data.rules.filter(r=>r.id.startsWith('XS2A-ACCOUNT-'));assert.equal(newDrafts.length,6);assert(newDrafts.every(r=>r.status==='draft'&&r.quoteVerified&&r.profile==='xs2a-0.8'&&r.sourceHash&&r.references.length===2));
   assert.equal(standardsWorkspace.data.connections.length,0);assert.equal(standardsWorkspace.data.runs.length,0);assert(standardsWorkspace.data.rules.length>0);
   assert.equal((await fetch(origin+'/api/runs',{method:'POST',headers:{Origin:origin,Cookie:sessions.bank.cookie,'Content-Type':'application/json'},body:'{}'})).status,403);
   assert.equal((await call('tpp','/api/runs','POST',{kind:'platform'})).status,403);
@@ -41,6 +41,10 @@ test('HTTP workflows: authentication, CSRF, worker, evidence, reports, isolation
   assert.equal((await call('tpp','/bridge/v1/connections/test/accounts')).status,503);
   assert.equal((await call('bank','/api/rules/COMMON-JSON/review','POST',{approve:true,note:'reviewed enough',confirm:true})).status,403);
   assert.equal((await call('standards','/api/rules/COMMON-JSON/review','POST',{approve:true,note:'Test-only applicability review for JSON support',confirm:true})).status,200);
+  assert.equal((await call('bank','/api/rules/XS2A-ACCOUNT-NO-BBAN/review','POST',{approve:true,note:'Review test: legacy payment accounts',confirm:true})).status,403);
+  assert.equal((await call('standards','/api/rules/XS2A-ACCOUNT-NO-BBAN/review','POST',{approve:true,note:'Test-only review of section 9.3.3 prohibited BBAN row',confirm:true})).status,200);
+  const seededPack={...pack,profile:'xs2a-0.8'};const seededImport=await call('bank','/api/packs','POST',seededPack);const seededRun=await call('bank','/api/runs','POST',{kind:'evidence',packId:seededImport.data.id});const seededResult=await waitRun('bank',seededRun.data.id);assert(seededResult.results.some(r=>r.ruleId==='XS2A-ACCOUNT-NO-BBAN'&&['PASS','FAIL'].includes(r.verdict)));assert(seededResult.results.some(r=>r.id==='XS2A-ACCOUNT-IBAN'&&r.verdict==='NEEDS_REVIEW'));
+
   const bankWorkspace=(await call('bank','/api/workspace')).data;assert.equal(bankWorkspace.diagnosticsRuns.length,0);assert(bankWorkspace.runs.every(r=>r.kind!=='platform'));
   const readiness=await call('bank','/api/connections/'+bankWorkspace.connections[0].id+'/readiness');assert.equal(readiness.data.ready,false);assert.equal(readiness.data.reasons.length,3);assert.equal((await call('bank','/api/runs','POST',{kind:'bank',connectionId:bankWorkspace.connections[0].id})).status,409);assert.equal((await call('tpp','/api/connections/'+bankWorkspace.connections[0].id+'/readiness')).status,403);
   const uploaded=await call('bank','/api/connections/'+bankWorkspace.connections[0].id+'/spec','POST',{spec:{openapi:'3.0.3',info:{title:'Synthetic specification',version:'1'},paths:{'/accounts':{get:{responses:{200:{content:{'application/json':{schema:{type:'object'}}}}}}}}}});

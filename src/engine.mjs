@@ -1,3 +1,4 @@
+import {evaluateBankStandard} from './bank-standard-candidates.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 import {all,get,put,event,root} from './store.mjs';
@@ -19,7 +20,7 @@ export function validatePack(p){
  return {...p,samples};
 }
 const fail=(ok,expected,observed)=>({verdict:ok?'PASS':'FAIL',expected,observed});
-export function evaluate(rule,o){const b=o.body;const a=b.accounts||[];const values=(b.balances||[]);switch(rule.id){
+export function evaluate(rule,o){const bankResult=evaluateBankStandard(rule,o);if(bankResult)return bankResult;const b=o.body;const a=b.accounts||[];const values=(b.balances||[]);switch(rule.id){
  case 'AIS-RESOURCE':return fail(a.length>0&&a.every(x=>typeof x.resourceId==='string'&&x.resourceId.length>0),'Every returned account has a nonempty resourceId','Identifier presence checked; tokenization algorithm NOT_ASSESSED');
  case 'AIS-CURRENCY':return fail(a.length>0&&a.every(x=>/^[A-Z]{3}$/.test(x.currency||'')),'Every account includes a three-letter currency','Account currency fields inspected');
  case 'AIS-OWNER':return fail(a.every(x=>!('ownerName'in x)),'ownerName must not be returned','ownerName field presence checked; ownerNames permission requires additional evidence');
