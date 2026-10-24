@@ -229,3 +229,4 @@
 .brand-mark.brand-logo{display:block;object-fit:contain;padding:0;letter-spacing:normal;background:transparent;flex-shrink:0;aspect-ratio:1;width:40px;height:40px;border-radius:9px}
 .login-simple .brand-mark.brand-logo{width:44px;height:44px}
 .source-reference-links{display:flex;gap:8px;flex-wrap:wrap;margin:16px 0}.source-reference-links .btn{white-space:normal;text-align:left}
+.saved-reports{margin-bottom:24px}.saved-reports-scroll{max-height:480px;overflow:auto;scrollbar-width:thin}.saved-reports-scroll th{position:sticky;top:0;z-index:1;background:#f7f9f8}.saved-reports small{overflow-wrap:anywhere;max-width:360px}.dialog-content .saved-reports .card-head>.btn{display:none}
