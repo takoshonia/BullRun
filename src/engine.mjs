@@ -1,3 +1,4 @@
+import {savedReports} from './report-store.mjs';
 import {evaluateBankStandard} from './bank-standard-candidates.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -59,5 +60,5 @@ export async function executeRun(run){
  const counts={};for(const r of output)counts[r.verdict]=(counts[r.verdict]||0)+1;
  const timestamps=pack?.samples.filter(s=>s.kind==='positive').map(s=>Date.parse(s.timestamp))||[];
  const result={...run,status:'completed',progress:100,startedAt:start,finishedAt:new Date().toISOString(),results:output,counts,metrics:groups,measurementWindow:timestamps.length?{start:new Date(Math.min(...timestamps)).toISOString(),end:new Date(Math.max(...timestamps)).toISOString(),environment:pack.environment,captureMethod:pack.captureMethod}:null,evidenceMode:run.kind==='platform'?'local_platform_controls':run.kind==='spec'?'specification_only':pack?.mode||'not_connected',rulesetHash:sha(ruleSnapshot),build:'0.1.0',adapterVersion:pack?.adapterVersion||null,specHash:pack?.specHash||null,limitations:['Selected checks only; not overall Georgian compliance or certification.','Platform fixtures do not establish bank conformance.','No production uptime inferred from short observations.',pack?.mode==='mock_http'?'Independent mock simulated authorization, no mTLS/JWS. Synthetic HTTP timings depend on hosting and network; they do not establish real bank performance.':'Imported samples are uploader-declared, not independently authenticated measurements.'],evidenceHash:pack?sha(pack):null};
- put('runs',result);event('worker','run_completed',run.id,{counts});return result;
+ try{return savedReports.complete(result)}catch(error){error.auditResult=result;throw error}
 }
