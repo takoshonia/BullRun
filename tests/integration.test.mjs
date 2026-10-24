@@ -7,7 +7,7 @@ import {spawn} from 'node:child_process';
 const root=path.resolve(import.meta.dirname,'..');
 test('HTTP workflows: authentication, CSRF, worker, evidence, reports, isolation, gates and mapper',{timeout:45000},async()=>{
  const dir=fs.mkdtempSync(path.join(root,'data','integration-'));const port=14317;const origin=`http://127.0.0.1:${port}`;
- const proc=spawn(process.execPath,['src/server.mjs'],{cwd:root,env:{...process.env,PORT:String(port),GEOBRIDGE_ORIGIN:origin,GEOBRIDGE_DATA_DIR:dir},stdio:['ignore','pipe','pipe']});
+ const proc=spawn(process.execPath,['src/server.mjs'],{cwd:root,env:{...process.env,PORT:String(port),GEOBRIDGE_ORIGIN:origin,GEOBRIDGE_DATA_DIR:dir,GEOBRIDGE_ALLOWED_HOSTS:'sandbox.example.com'},stdio:['ignore','pipe','pipe']});
  let logs='';proc.stdout.on('data',x=>logs+=x);proc.stderr.on('data',x=>logs+=x);
  try{
   for(let n=0;n<80;n++){await new Promise(r=>setTimeout(r,100));if(fs.existsSync(path.join(dir,'demo-credentials.json'))){try{if((await fetch(origin+'/api/health')).ok)break}catch{}}}
@@ -26,6 +26,12 @@ test('HTTP workflows: authentication, CSRF, worker, evidence, reports, isolation
   assert.equal((await fetch(origin+'/api/runs',{method:'POST',headers:{Origin:origin,Cookie:sessions.bank.cookie,'Content-Type':'application/json'},body:'{}'})).status,403);
   assert.equal((await call('tpp','/api/runs','POST',{kind:'platform'})).status,403);
   for(const role of ['bank','tpp','reviewer','standards']){assert.equal((await call(role,'/api/diagnostics')).status,403);assert.equal((await call(role,'/api/diagnostics','POST',{})).status,403);assert.equal((await call(role,'/api/runs','POST',{kind:'platform'})).status,403);assert.equal((await call(role,'/api/schedules','POST',{kind:'platform',minutes:60})).status,403)}
+  const badRegistration=await call('bank','/api/connections','POST',{name:'Only a name'});assert.equal(badRegistration.status,400);assert(badRegistration.data.fieldErrors.bankName);assert(badRegistration.data.fieldErrors.baseUrl);
+  const registration={name:'Registered sandbox',bankName:'Test institution',country:'GE',contactEmail:'api@example.com',profile:'xs2a-0.8',baseUrl:'https://sandbox.example.com/api',documentationUrl:'https://developer.example.com/docs',authMethod:'api_key',credentialReference:'sandbox/test/credentials',apiKeyHeader:'X-API-Key',operations:['accounts','balances'],timeoutMs:5000};
+  assert.equal((await call('tpp','/api/connections','POST',registration)).status,403);
+  const notAllowed=await call('bank','/api/connections','POST',{...registration,baseUrl:'https://unapproved.example.com'});assert.equal(notAllowed.status,400);assert(notAllowed.data.fieldErrors.baseUrl);
+  const registered=await call('bank','/api/connections','POST',{...registration,clientSecret:'secret-must-not-persist'});assert.equal(registered.status,201);assert.equal(registered.data.status,'not_connected');assert.equal(registered.data.bankName,registration.bankName);assert.equal(registered.data.authentication.apiKeyHeader,'X-API-Key');assert.equal(registered.data.clientSecret,undefined);assert(Object.values(registered.data.capabilities).every(v=>v==='unknown'));
+  assert(!JSON.stringify((await call('tpp','/api/workspace')).data).includes('sandbox/test/credentials'));
   const run=await call('operator','/api/diagnostics','POST',{});assert.equal(run.status,201);const done=await waitRun('operator',run.data.id);assert.equal(done.status,'completed');assert.equal(done.counts.PASS,25);
   assert.equal((await call('tpp','/api/runs/'+run.data.id)).status,404);
   assert.equal((await call('reviewer','/api/runs/'+run.data.id)).status,404);
