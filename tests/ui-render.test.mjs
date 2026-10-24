@@ -13,7 +13,7 @@ test('all workspace views render without template exceptions; unsafe names are e
  const AsyncFunction=Object.getPrototypeOf(async function(){}).constructor;
  const execute=new AsyncFunction('document','fetch','setInterval','setTimeout','clearTimeout',code+'\nreturn {state,render,reportHistory,showReportExplanationJob};');
  const ui=await execute(doc,fetch,()=>{},()=>{},()=>{});
- await ui.reportHistory(run.id);assert(element('#dialog-body').innerHTML.includes('Generate English explanations'));
+ await ui.reportHistory(run.id);assert(element('#dialog-body').innerHTML.includes('Prepare report analysis'));
  ui.showReportExplanationJob({id:'job-1',status:'queued'});assert(element('#dialog-body').innerHTML.includes('Refresh status'));
  ui.showReportExplanationJob({id:'job-1',status:'completed',reportId:'report-2'});assert(element('#dialog-body').innerHTML.includes('Open report with explanations'));
  assert(element('#dialog-body').innerHTML.includes('href="/api/reports/report-2/html"'),'completed job link must include its saved report ID');
