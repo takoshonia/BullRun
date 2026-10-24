@@ -4,7 +4,7 @@ import {templateNarrative,narrativeFacts,validateNarrative} from './report-narra
 import {id,sha,redact,authorized} from './security.mjs';
 
 export const REPORT_SCHEMA_VERSION=1;
-export const REPORT_RENDERER_VERSION='2.1.0';
+export const REPORT_RENDERER_VERSION='2.2.0';
 const impact=v=>({FAIL:'The selected check failed. Review its scope and evidence before applying a change.',BLOCKED:'The required setup or evidence is missing; this is not a passing result.',NEEDS_REVIEW:'The rule has not been approved and was not executed.',NOT_ASSESSED:'This aspect has not been assessed with the available evidence.',NOT_APPLICABLE:'This check does not apply to this observation.',PASS:'Only the selected assertion passed; this does not establish overall compliance.'}[v]||'Review this result against its recorded evidence.');
 
 export function snapshotAudit(run,{connection=null,pack=null}={}){
