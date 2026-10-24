@@ -11,8 +11,9 @@ test('all workspace views render without template exceptions; unsafe names are e
  const w={user,connections:[{id:'c1',name:'Pending connection',tenant:'bank-demo',profile:'xs2a-0.8',status:'not_connected',environment:'pending',capabilities:{accounts:'unknown'}}],runs:[run],packs:[],profiles:[{id:'platform',name:'Platform',status:'active',note:'Engineering controls'}],rules:[],sources:[],schedules:[],gates:[],updates:[],ai:{configured:false}};
  const fetch=async url=>({ok:true,json:async()=>url==='/api/me'?{user,csrf:'test'}:url==='/api/events'?[]:url.endsWith('/reports')?{reports:[{id:'report-1',runId:run.id,runName:'Saved report',version:1,createdAt:run.finishedAt}]}:w});
  const AsyncFunction=Object.getPrototypeOf(async function(){}).constructor;
- const execute=new AsyncFunction('document','fetch','setInterval','setTimeout','clearTimeout',code+'\nreturn {state,render,reportHistory,showReportExplanationJob};');
+ const execute=new AsyncFunction('document','fetch','setInterval','setTimeout','clearTimeout',code+'\nreturn {state,render,reportHistory,showReportExplanationJob,findingDetail};');
  const ui=await execute(doc,fetch,()=>{},()=>{},()=>{});
+ ui.state.run={...run,results:[{id:'blocked-check',title:'Balance checks',verdict:'BLOCKED',expected:'Mapped accounts',observed:'Blocked by account mapping',fix:'Resolve the prerequisite.'}]};await ui.findingDetail('blocked-check');assert(!element('#dialog-body').innerHTML.includes('Explain in English'));assert(element('#dialog-body').innerHTML.includes('Blocked by account mapping'));
  await ui.reportHistory(run.id);assert(element('#dialog-body').innerHTML.includes('Prepare report analysis'));
  ui.showReportExplanationJob({id:'job-1',status:'queued'});assert(element('#dialog-body').innerHTML.includes('Refresh status'));
  ui.showReportExplanationJob({id:'job-1',status:'completed',reportId:'report-2'});assert(element('#dialog-body').innerHTML.includes('Open report with explanations'));

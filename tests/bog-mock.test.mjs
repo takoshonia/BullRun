@@ -75,8 +75,8 @@ test('actual BOG mock -> PKCE -> common AIS -> reports and independently injecte
   for(const obs of pack.observations.filter(o=>o.path.startsWith('/oauth/'))){assert.equal(obs.bodyHash,null);assert.deepEqual(obs.body,{redacted:'Authorization material intentionally omitted'});}
   assert.equal(pack.samples.filter(s=>s.kind==='positive'&&s.operation==='transactions').length,9);
   for(const type of ['quality','incompatibility','json','csv'])assert.equal((await call('/api/runs/'+healthy.id+'/export/'+type)).status,200);
-  for(const [name,id] of [['missingCurrency','BOG-MOCK-FLOW'],['numericAmounts','BOG-MOCK-BALANCES-bog-gel-001'],['repeatPagination','BOG-MOCK-PAGINATION-bog-gel-001'],['revokedConsentBypass','BOG-MOCK-REVOKED'],['malformedErrors','BOG-MOCK-ERROR-SHAPE'],['wrongEndpoint','BOG-MOCK-BALANCES-bog-gel-001'],['rateLimited','BOG-MOCK-FLOW'],['slowResponse','BOG-MOCK-FLOW']]){
-   await fault(name,true);try{const run=await audit();assert(run.results.some(r=>r.id===id&&r.verdict==='FAIL'),name+' must be detected');}finally{await fault(name,false);}
+  for(const [name,id] of [['missingCurrency','BOG-MOCK-ACCOUNTS'],['numericAmounts','BOG-MOCK-BALANCES-bog-gel-001'],['repeatPagination','BOG-MOCK-PAGINATION-bog-gel-001'],['revokedConsentBypass','BOG-MOCK-REVOKED'],['malformedErrors','BOG-MOCK-ERROR-SHAPE'],['wrongEndpoint','BOG-MOCK-BALANCES-bog-gel-001'],['rateLimited','BOG-MOCK-FLOW'],['slowResponse','BOG-MOCK-FLOW']]){
+   await fault(name,true);try{const run=await audit();assert(run.results.some(r=>r.id===id&&r.verdict==='FAIL'),name+' must be detected');if(name==='missingCurrency'){assert(run.results.some(r=>r.id==='BOG-MOCK-UNKNOWN-ACCOUNT'&&r.verdict==='PASS'));assert(run.results.some(r=>r.id==='BOG-MOCK-REVOKED'&&r.verdict==='PASS'));assert(run.results.some(r=>r.id==='BOG-MOCK-BALANCES'&&r.verdict==='BLOCKED'));assert(run.results.some(r=>r.id==='BOG-MOCK-PAGINATION'&&r.verdict==='BLOCKED'))}}finally{await fault(name,false);}
   }
  }finally{
   if(app&&app.exitCode===null)await new Promise(r=>{app.once('exit',r);app.kill()});

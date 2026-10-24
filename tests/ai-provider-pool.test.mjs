@@ -57,7 +57,7 @@ test('invalid AI facts fail validation before moving to the next provider',async
 test('per-connection timeout leaves time for another provider and all exhausted providers use the template',async()=>{
  const router=createProviderRouter({attemptTimeoutMs:10});
  const result=await router.generate({...options,connections:[connection('openai'),connection('gemini')],fetchImpl:async(url,{signal})=>url.includes('openai')?new Promise((_resolve,reject)=>{signal.addEventListener('abort',()=>reject(signal.reason),{once:true});setTimeout(()=>reject(Error('test deadline')),30)}):success('gemini',{value:'ok'})});assert.equal(result.provider,'gemini');assert.equal(result.attempts[0].reason,'timeout');
- const snapshot={findings:[{id:'field',title:'Field',verdict:'BLOCKED',expected:'Evidence',observed:'Missing',impact:'Unknown.',remediation:'Capture evidence.'}]};let calls=0;
+ const snapshot={findings:[{id:'field',title:'Field',verdict:'FAIL',expected:'Evidence',observed:'Missing',impact:'Unknown.',remediation:'Capture evidence.'}]};let calls=0;
  const fallback=await generateNarrative(snapshot,{config:{configured:true,connections:[connection('openai'),connection('gemini'),connection('grok')]},fetchImpl:async()=>{calls++;return new Response('{}',{status:503})}});assert.equal(calls,3);assert.equal(fallback.mode,'deterministic_template');assert.equal(fallback.reason,'providers_unavailable');
 });
 

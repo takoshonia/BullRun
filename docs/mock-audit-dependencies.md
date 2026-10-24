@@ -1,0 +1,11 @@
+# Dependency-aware mock audits
+
+BOG, TBC and Gringott share the mock audit runner. A contract/authorization setup failure is recorded as a failed setup finding and all unexecuted check families are explicitly BLOCKED by that prerequisite. Checks are not silently omitted.
+
+After a valid consent is established, account discovery, unknown-account rejection and revocation are isolated. Failure to map the account list does not prevent unknown-account or post-revocation access checks. Balance and pagination checks require safely mapped account identifiers; when discovery fails, each family receives a BLOCKED result naming the account-discovery finding and its recorded reason. The runner never fabricates account identifiers or treats unvalidated response data as a valid common mapping.
+
+For a valid empty account list, mapping may pass, but account-scoped balance and pagination checks remain BLOCKED because no targets exist. With discovered accounts, a balance failure does not suppress that account's transaction checks or later accounts. Deadline expiry blocks work that has not started rather than inventing independent failures. A failed request that was actually attempted remains FAIL. Consent cleanup is distinct from the revocation assertion: cleanup alone cannot prove post-revocation access denial.
+
+Blocked findings retain `blockedBy` and a readable prerequisite reason, without attaching an unrelated previous observation index. Account-family placeholders are used when no safe account list exists; the runner does not claim per-account coverage it could not enumerate. Therefore executed observation counts can still be lower than a healthy run. More responses in a healthy run also produce more repeated header/mapping assertions. The report distinguishes those observation counts from independent requirements.
+
+AI report analysis includes FAIL groups only. Blocked checks retain expected/observed facts and plain prerequisite instructions, have no separate AI paragraph or finding-level AI buttons, and bypass both provider calls and old cached AI explanations. Fix the prerequisite and run a new audit to collect the previously unavailable evidence. Saved historical runs and report versions are not rewritten to imply checks were executed.
