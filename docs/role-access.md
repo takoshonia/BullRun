@@ -10,6 +10,7 @@ Operator is unchanged: all existing pages and technical controls remain availabl
 | TPP explorer | No | No | Published connections, owner-scoped consent |
 | Oversight dashboard | No | Authorized banks | No |
 | Monitoring | Own bank, audit schedules | Authorized bank monitoring, audit schedules | No |
+| Mock comparison | No; run own quality suite from Audit center | Authorized synthetic comparison batches | No |
 | Reports | Own bank | Authorized banks | No |
 | Standards & rules | Approved applicable rules, read-only | Review and approve | No |
 | Release gates | Own bank decisions, read-only | Evaluate and record decisions | No |
@@ -38,3 +39,5 @@ Known synthetic mock connections using the shared `bank-demo` tenant are assigne
 Private pending connections are excluded from the TPP catalog. Only configured synthetic connections or explicitly published connections appear there. Common-interface consent remains owner-, organization-, connection-, and account-scoped.
 
 Bank-facing demo pages use configured synthetic mock banks. Account provisioning no longer creates empty sandbox connections. Untouched, unreferenced legacy placeholders are retained under retired_connections and removed from active connections; customized or referenced records are preserved. Sandbox registration and specification setup remain available to Operator.
+
+Operator also has Mock comparison and time-limited synthetic fault controls when an administration key is configured. NBG cannot activate faults. See mock-quality-comparison.md for the measurement and recovery limits.

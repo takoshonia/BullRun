@@ -78,6 +78,8 @@ test('TBC consent/session headers, AIS, captured reports and revocation through 
   assert(run.results.some(r=>r.id==='TBC-MOCK-REVOKED'&&r.verdict==='PASS'));
   const pack=await (await call('/api/packs/'+run.packId)).json();assert(!JSON.stringify(pack).includes('PRIVATE_'));
   for(const type of ['quality','incompatibility','json','csv'])await call('/api/runs/'+run.id+'/export/'+type);
+  const qualityQueued=await (await call('/api/runs','POST',{kind:'bank',connectionId:'mock-tbc',qualitySuite:true})).json();let qualityRun;
+  for(let i=0;i<150;i++){qualityRun=await (await call('/api/runs/'+qualityQueued.id)).json();if(['completed','failed'].includes(qualityRun.status))break;await new Promise(r=>setTimeout(r,50))}assert.equal(qualityRun.status,'completed',qualityRun.error);assert.equal(qualityRun.quality.measurement.attempts,30);assert(qualityRun.quality.comparisonKey);
   assert([...consents.values()].every(c=>!c.active),'all test consents revoked');
  }finally{
   if(app&&app.exitCode===null){await new Promise(r=>{app.once('exit',r);app.kill()});}

@@ -390,3 +390,7 @@
 .bank-audit-context-profile{margin:14px 0 0;color:var(--muted);font-size:13px;line-height:1.6;overflow-wrap:anywhere}
 .bank-audit-context+.audit-summary{margin:0 0 26px;line-height:1.7}
 @media(max-width:640px){.bank-audit-context-item{padding:20px}.bank-audit-context-heading{align-items:flex-start;flex-direction:column;gap:12px}.bank-audit-context-heading h2{font-size:19px}}
+
+.comparison-bank-options{display:flex;flex-wrap:wrap;gap:12px 24px;margin:20px 0}.quality-batch .table-wrap{max-height:540px;overflow:auto}.quality-batch table{min-width:1120px}.quality-batch th{position:sticky;top:0;background:#f5f8f7;z-index:1}.quality-batch td{min-width:135px}.quality-batch td:first-child{min-width:200px}.quality-batch td small{display:block;line-height:1.6;margin-top:6px}.quality-batch td:last-child .btn{margin-bottom:8px}
+
+.quality-batch .badge.partial{background:#fff4de;color:#8a641f;border-color:#f0ddb2}

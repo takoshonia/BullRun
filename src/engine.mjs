@@ -1,3 +1,4 @@
+import {captureQuality} from './mock-quality.mjs';
 import {checkSource,adapterSource} from './check-sources.mjs';
 import {savedReports} from './report-store.mjs';
 import {evaluateBankStandard} from './bank-standard-candidates.mjs';
@@ -41,11 +42,15 @@ export async function executeRun(run){
  const output=[];const start=new Date().toISOString();const ruleSnapshot=all('rules');
  if(run.kind==='platform')output.push(...assurance());
  if(run.kind==='spec'){const uploaded=get('specs',run.connectionId);if(!uploaded)throw Error('No specification uploaded');output.push(...reviewSpecification(uploaded.spec,ruleSnapshot.filter(r=>r.profile===run.profile)));}
- let pack=null;
+ let pack=null,quality=null;
  const target=run.kind==='bank'&&adapterTargets().find(t=>t.id===run.connectionId);
  if(target){
   const connection=get('connections',run.connectionId);if(connection?.tenant!==target.tenant)throw Error('Configured adapter scope mismatch');
-  const capture=await captureMock(connection);output.push(...capture.results);
+  const demoState=()=>all('mock_demo').filter(p=>'mock-'+p.target===connection.id&&p.status!=='restored').map(p=>({defect:p.defect,status:Date.parse(p.expiresAt)<=Date.now()?'expired_or_restoring':p.status,expiresAt:p.expiresAt})).sort((a,b)=>a.defect.localeCompare(b.defect));
+  const before=run.qualitySuite?demoState():[];
+  const capture=run.qualitySuite?await captureQuality(connection,{policy:run.qualityPolicy,environment:process.env.GEOBRIDGE_BENCHMARK_ENVIRONMENT||'configured-mock-network'}):await captureMock(connection);quality=capture.quality||null;
+  if(quality){quality.demoControls={before,after:demoState()};if(sha(before)!==sha(quality.demoControls.after)){quality.comparisonKey=null;quality.complete=false;quality.reason='Operator demo controls changed or expired during this suite';for(const f of capture.results.filter(f=>['DEMO-RELIABILITY','DEMO-LATENCY'].includes(f.id)&&f.verdict!=='FAIL')){f.verdict='NOT_ASSESSED';f.observed+='; demo control conditions changed during the suite'}}}
+  output.push(...capture.results);
   pack=put('packs',{...capture.pack,id:id(),tenant:run.tenant,createdAt:new Date().toISOString(),hash:sha(capture.pack)});
   run={...run,packId:pack.id};
  }
@@ -60,6 +65,6 @@ export async function executeRun(run){
  const groups=pack?['accounts','balances','transactions','consent'].map(operation=>({operation,...metrics(pack.samples.filter(s=>s.operation===operation))})):[];
  const counts={};for(const r of output)counts[r.verdict]=(counts[r.verdict]||0)+1;
  const timestamps=pack?.samples.filter(s=>s.kind==='positive').map(s=>Date.parse(s.timestamp))||[];
- const result={...run,status:'completed',progress:100,startedAt:start,finishedAt:new Date().toISOString(),results:output,counts,metrics:groups,measurementWindow:timestamps.length?{start:new Date(Math.min(...timestamps)).toISOString(),end:new Date(Math.max(...timestamps)).toISOString(),environment:pack.environment,captureMethod:pack.captureMethod}:null,evidenceMode:run.kind==='platform'?'local_platform_controls':run.kind==='spec'?'specification_only':pack?.mode||'not_connected',rulesetHash:sha(ruleSnapshot),build:'0.1.0',adapterVersion:pack?.adapterVersion||null,specHash:pack?.specHash||null,limitations:['Selected checks only; not overall Georgian compliance or certification.','Platform fixtures do not establish bank conformance.','No production uptime inferred from short observations.',pack?.mode==='mock_http'?'Independent mock simulated authorization, no mTLS/JWS. Synthetic HTTP timings depend on hosting and network; they do not establish real bank performance.':'Imported samples are uploader-declared, not independently authenticated measurements.'],evidenceHash:pack?sha(pack):null};
+ const result={...run,quality,status:'completed',progress:100,startedAt:start,finishedAt:new Date().toISOString(),results:output,counts,metrics:groups,measurementWindow:timestamps.length?{start:new Date(Math.min(...timestamps)).toISOString(),end:new Date(Math.max(...timestamps)).toISOString(),environment:pack.environment,captureMethod:pack.captureMethod}:null,evidenceMode:run.kind==='platform'?'local_platform_controls':run.kind==='spec'?'specification_only':pack?.mode||'not_connected',rulesetHash:sha(ruleSnapshot),build:'0.1.0',adapterVersion:pack?.adapterVersion||null,specHash:pack?.specHash||null,limitations:['Selected checks only; not overall Georgian compliance or certification.','Platform fixtures do not establish bank conformance.','No production uptime inferred from short observations.',pack?.mode==='mock_http'?'Independent mock simulated authorization, no mTLS/JWS. Synthetic HTTP timings depend on hosting and network; they do not establish real bank performance.':'Imported samples are uploader-declared, not independently authenticated measurements.'],evidenceHash:pack?sha(pack):null};
  try{return savedReports.complete(result)}catch(error){error.auditResult=result;throw error}
 }
