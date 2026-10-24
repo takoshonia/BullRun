@@ -29,7 +29,7 @@ test('passing and review-only reports make zero provider requests even when AI i
 
 test('AI receives only distinct actionable groups, not passed results or draft-rule remediation',()=>{
  const failure={...pass,verdict:'FAIL',observed:'Missing header',impact:'Cannot correlate requests.'};const blocked={...pass,id:'blocked',ruleId:'AUTH',verdict:'BLOCKED',expected:'Authorization evidence',observed:'Missing consent',remediation:'Fix the bank implementation.'};
- const facts=narrativeFacts(snapshot([pass,draft,failure,{...failure,observationIndex:3},blocked]));assert.equal(facts.length,2);assert.equal(facts[0].verdict,'FAIL');assert.equal(facts[1].verdict,'BLOCKED');assert(facts[1].remediation.includes('missing setup or evidence'));assert(!JSON.stringify(facts).includes('Return an IBAN.'));assert(!JSON.stringify(facts).includes('Fix the bank implementation.'));assert(nextAction(draft).includes('no bank defect'));
+ const facts=narrativeFacts(snapshot([pass,draft,failure,{...failure,observationIndex:3},blocked]));assert.equal(facts.length,1);assert.equal(facts[0].verdict,'FAIL');assert(nextAction(blocked).includes('missing setup or evidence'));assert(!JSON.stringify(facts).includes('Return an IBAN.'));assert(!JSON.stringify(facts).includes('Fix the bank implementation.'));assert(nextAction(draft).includes('no bank defect'));
 });
 
 test('AI analysis is attached by group reference, not array position; all original evidence remains',()=>{

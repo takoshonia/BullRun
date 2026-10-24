@@ -13,7 +13,7 @@ export function renderReportDocument(snapshot,meta){
  const owner=r.kind==='platform'?'Operator':'Bank engineer / Operator';
  const ai=new Map((n?.findings||[]).map(f=>[f.reference,f]));
  const actionable=groups=>groups.map(g=>{
-  const text=n?.mode==='live_ai_advisory'?ai.get(g.reference):null;
+  const text=g.verdict==='FAIL'&&n?.mode==='live_ai_advisory'?ai.get(g.reference):null;
   return '<article class="issue"><h3>'+esc(g.displayRule||g.ruleId||g.id)+' — '+esc(g.title)+'</h3><p class="label">'+esc(g.verdict)+' · '+esc(g.severity||'Severity not assigned')+' · '+g.count+' observation'+(g.count===1?'':'s')+'</p>'+dl([['Expected',g.expected],['Observed',g.observed],['Evidence references',g.members.map(m=>m.reference+(m.observationIndex!==null?' (observation '+m.observationIndex+')':'')).join(', ')],['Source',source(g)]])+(text?'<div class="analysis"><h4>AI-assisted analysis · advisory</h4><p>'+esc(text.summary)+'</p><p><strong>Impact:</strong> '+esc(text.impact)+'</p><p><strong>Next action and verification:</strong> '+esc(text.remediation)+'</p></div>':'<p><strong>Next action:</strong> '+esc(nextAction(g,owner))+'</p>')+'</article>';
  }).join('');
  const mode=r.evidenceMode;
@@ -40,7 +40,7 @@ export function renderReportDocument(snapshot,meta){
  gaps.push('Continuous availability is a separate monitoring stream. This single audit does not establish production uptime or a bank SLA.');
  const metrics=snapshot.metrics.filter(m=>m.attempts>0);
  const metricRows=metrics.map(m=>[m.operation,m.attempts,m.successes,m.errors,m.timeouts,m.successRate==null?'Not measured':(m.successRate*100).toFixed(1)+'%',m.p50??'Not measured',m.p95??'Insufficient successful samples']);
- const status=n?.mode==='live_ai_advisory'?'AI-assisted analysis of failures and blockers':narrativeReason(n?.reason)||'Evidence-based report; no AI analysis requested.';
+ const status=n?.mode==='live_ai_advisory'?'AI-assisted analysis of failures':narrativeReason(n?.reason)||'Evidence-based report; no AI analysis requested.';
  const body='<header><div class="brand">GeoBridge · Full audit report</div><h1>'+esc(r.name)+'</h1><p class="scope">'+esc(scope)+'</p><p class="muted">Version '+meta.version+' · Saved '+esc(meta.createdAt)+' · Report '+esc(meta.id)+'</p></header>'+
  '<section class="summary"><h2>Audit outcome</h2><p class="lead">'+esc(review.summary)+'</p><p>Counts are observations, including repeated checks against different responses; they are not a count of independent requirements.</p><h3>Next decisions</h3>'+list(priorities)+'</section>'+
  '<section><h2>Failures and blockers</h2>'+(review.failures.length?'<h3>Demonstrated failures</h3>'+actionable(review.failures):'<p>No failing observations were recorded.</p>')+(review.blocked.length?'<h3>Blocked checks — assessment pending</h3>'+actionable(review.blocked):'<p>No blocked observations were recorded.</p>')+(review.failures.length||review.blocked.length?'<p class="muted">'+esc(status)+'</p>':'')+'</section>'+

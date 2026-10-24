@@ -7,7 +7,7 @@ export function template(finding,language='en'){
  return {...(language==='ka'?ka:en),ruleId: finding.ruleId||finding.id,section:finding.section||'Platform control',mode:'deterministic_template',generatedAt:new Date().toISOString()};
 }
 export async function explain(f,language='en',{router=createProviderRouter(),config=aiConfig(),fetchImpl=fetch}={}){
- const fallback=template(f,language);if(!config.configured)return {...fallback,reason:'Live AI is not configured'};
+ const fallback=template(f,language);if(f.verdict==='BLOCKED')return {...fallback,reason:'This check was blocked by a prerequisite; no AI analysis is needed.'};if(!config.configured)return {...fallback,reason:'Live AI is not configured'};
  const facts={ruleId:f.ruleId||f.id,title:f.title,verdict:f.verdict,section:f.section||'Platform control',expected:f.expected,observed:f.observed,fix:f.fix};
  const properties=Object.fromEntries(['summary','impact','fix','ruleId','section'].map(k=>[k,{type:'string'}]));
  const schema={type:'object',additionalProperties:false,properties,required:Object.keys(properties)};
