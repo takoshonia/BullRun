@@ -6,7 +6,7 @@ const show=value=>value===null||value===undefined?'Not recorded':String(value);
 const table=(headers,rows)=>'<div class="table-scroll"><table><thead><tr>'+headers.map(h=>'<th>'+esc(h)+'</th>').join('')+'</tr></thead><tbody>'+rows.map(row=>'<tr>'+row.map(v=>'<td>'+esc(show(v))+'</td>').join('')+'</tr>').join('')+'</tbody></table></div>';
 const list=items=>'<ul>'+items.map(i=>'<li>'+esc(i)+'</li>').join('')+'</ul>';
 const dl=rows=>'<dl>'+rows.map(([k,v])=>'<dt>'+esc(k)+'</dt><dd>'+esc(show(v))+'</dd>').join('')+'</dl>';
-const source=f=>[f.source,f.section?'§'+f.section:null,f.sourceHash?'SHA-256 '+f.sourceHash:null].filter(Boolean).join(' · ')||'No source locator recorded';
+const source=f=>[f.sourceLabel||(f.source?'Selected check source':null),f.source,f.section,f.sourceHash?'SHA-256 '+f.sourceHash:null,...(f.sourceReferences||[]).map(r=>[r.document||r.source,r.version,r.locator||r.section,r.operation,r.note,(r.hash||r.sourceHash)?'SHA-256 '+(r.hash||r.sourceHash):null].filter(Boolean).join(' · ')),f.sourceAvailability].filter(Boolean).join(' | ')||'Source was not recorded in this audit version';
 
 export function renderReportDocument(snapshot,meta){
  const review=reviewReport(snapshot),r=snapshot.run,n=snapshot.narrative;

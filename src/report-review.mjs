@@ -5,7 +5,7 @@ export function groupFindings(snapshot){
  for(const [index,f] of snapshot.findings.entries()){
   // Group only equivalent assertions and outcomes. Distinct defects, sources and severities stay separate.
   const mapping=f.basis==='platform_contract'&&/^MAP-\d+$/.test(f.ruleId||f.id||'');
-  const identity={rule:mapping?'mapping:'+f.title:f.ruleId||f.title,layer:f.layer,verdict:f.verdict,severity:f.severity,expected:f.expected,observed:f.observed,source:f.source,sourceHash:f.sourceHash,section:f.section,basis:f.basis,remediation:f.remediation,assessmentLimit:f.assessmentLimit};
+  const identity={rule:mapping?'mapping:'+f.title:f.ruleId||f.title,layer:f.layer,verdict:f.verdict,severity:f.severity,expected:f.expected,observed:f.observed,sourceReferences:f.sourceReferences,sourceType:f.sourceType,source:f.source,sourceHash:f.sourceHash,section:f.section,basis:f.basis,remediation:f.remediation,assessmentLimit:f.assessmentLimit};
   const key=sha(identity);
   if(!groups.has(key))groups.set(key,{...f,displayRule:mapping?'Common contract':f.ruleId||f.id,reference:'group-'+index,members:[],count:0});
   const group=groups.get(key);group.members.push({reference:'finding-'+index,id:f.id,observationIndex:f.observationIndex??null});group.count++;

@@ -1,9 +1,10 @@
+import {checkSource} from './check-sources.mjs';
 import crypto from 'node:crypto';
 import assert from 'node:assert/strict';
 import {performance} from 'node:perf_hooks';
 import {passwordHash,passwordMatch,redact,isPublicIP,allowedURL,authorized,canUseConsent,decimalString,normalize,metrics,percentile,sha} from './security.mjs';
 export function assurance(){const results=[];
- const check=(id,title,layer,fn)=>{const start=performance.now();try{const evidence=fn();results.push({id,title,layer,verdict:'PASS',expected:'Control rejects invalid input and preserves valid behavior',observed:typeof evidence==='string'?evidence:'Assertions completed successfully',basis:'platform_control',severity:'high',durationMs:+(performance.now()-start).toFixed(3)})}catch(e){results.push({id,title,layer,verdict:'FAIL',expected:'All assertions pass',observed:e.message,basis:'platform_control',severity:'high'})}};
+ const check=(id,title,layer,fn)=>{const source=checkSource('assurance.mjs',id,'GeoBridge internal system diagnostic');const start=performance.now();try{const evidence=fn();results.push({...source,id,title,layer,verdict:'PASS',expected:'Control rejects invalid input and preserves valid behavior',observed:typeof evidence==='string'?evidence:'Assertions completed successfully',basis:'platform_control',severity:'high',durationMs:+(performance.now()-start).toFixed(3)})}catch(e){results.push({...source,id,title,layer,verdict:'FAIL',expected:'All assertions pass',observed:e.message,basis:'platform_control',severity:'high'})}};
  const user={tenant:'tpp-a',role:'tpp'},c={tenant:'tpp-a',connection:'bank-a',status:'valid',expires:new Date(Date.now()+60000).toISOString(),operations:['balances'],accounts:['account-a']};
  check('S01','Cross-tenant records are denied','security',()=>{assert.equal(authorized(user,'tpp-b'),false);assert.equal(authorized(user,'tpp-a'),true)});
  check('S02','Expired consent is denied','security',()=>assert.equal(canUseConsent({...c,expires:'2020-01-01'},user,'bank-a','balances','account-a'),false));
