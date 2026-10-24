@@ -1,3 +1,10 @@
+export function categorySummary(results){
+ if(!Array.isArray(results))return null;
+ return Object.fromEntries(['compatibility','reliability','latency','security'].map(layer=>{
+  const rows=results.filter(f=>(f.layer||f.category)===layer),counts={};for(const f of rows)counts[f.verdict||'UNKNOWN']=(counts[f.verdict||'UNKNOWN']||0)+1;
+  return [layer,{total:rows.length,counts}];
+ }));
+}
 // Assemble the minimum workspace payload for each role; hiding navigation is not authorization.
 export function workspacePayload(user,{records,profiles,sources,aiConfigured,canSee,reportSummaries=[]}){
  const own=kind=>records(kind).filter(x=>canSee(user,x.tenant));
@@ -12,7 +19,7 @@ export function workspacePayload(user,{records,profiles,sources,aiConfigured,can
   connections,
   savedReports:diagnostic?reportSummaries.filter(r=>canSee(user,r.tenant)&&r.kind!=='platform'):[],
   catalog:['tpp','operator'].includes(user.role)?records('connections').filter(c=>user.role==='operator'||c.published===true||c.synthetic&&c.status==='mock_configured').map(c=>({id:c.id,name:c.name,status:c.status,profile:c.profile,capabilities:c.capabilities})):[],
-  runs:diagnostic?own('runs').filter(x=>x.kind!=='platform').slice(0,100).map(({results,...r})=>r):[],
+  runs:diagnostic?own('runs').filter(x=>x.kind!=='platform').slice(0,100).map(({results,...r})=>({...r,categorySummary:categorySummary(results)})):[],
   diagnosticsRuns:user.role==='operator'?own('runs').filter(x=>x.kind==='platform').slice(0,100).map(({results,...r})=>r):[],
   packs:(user.role==='reviewer'?own('packs'):packs).map(({observations,samples,...x})=>({...x,observationCount:observations.length,sampleCount:samples.length})),
   profiles:['operator','reviewer'].includes(user.role)?profiles:user.role==='bank'?profiles.filter(x=>x.id!=='platform'):profiles.filter(x=>selectedProfiles.has(x.id)),
