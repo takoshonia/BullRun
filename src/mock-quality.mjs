@@ -78,10 +78,35 @@ export function qualityLayers(results){
   return [layer,{verdict:count('FAIL')?'FAIL':pending?'PARTIAL':count('PASS')?'PASS':'NOT_ASSESSED',passed:count('PASS'),failed:count('FAIL'),pending,total:rows.length}];
  }));
 }
+// Align by explicit assertion identity, never bank-specific account IDs or display titles.
+export function sharedChecks(runs){
+ const groups=new Map();
+ for(const [index,run] of runs.entries())for(const f of run.results||[]){
+  let key;
+  if(f.basis==='mock_contract'){
+   const local=String(f.id).replace(/^(BOG-MOCK|TBC-MOCK|GRINGOTT)-/,'');
+   key='mock:'+local.replace(/^(BALANCES|PAGINATION)(?:-.*)?$/,'$1');
+  }else if(f.basis==='demo_quality')key='demo:'+f.id;
+  else if(f.ruleId||f.verdict==='NEEDS_REVIEW')key='rule:'+(f.ruleId||f.id);
+  else continue;
+  if(!groups.has(key))groups.set(key,{key,title:f.title,layer:f.layer||'compatibility',cells:runs.map(()=>[])});
+  groups.get(key).cells[index].push(f);
+ }
+ const priority=['FAIL','BLOCKED','NEEDS_REVIEW','NOT_ASSESSED','PASS','NOT_APPLICABLE'];
+ return [...groups.values()].map(group=>{
+  const cells=group.cells.map(findings=>{
+   if(!findings.length)return {verdict:'NOT_ASSESSED',expected:[],observed:['No matching check recorded in this audit.'],count:0};
+   const verdict=priority.find(v=>findings.some(f=>f.verdict===v))||'NOT_ASSESSED';
+   return {verdict,count:findings.length,expected:[...new Set(findings.map(f=>f.expected).filter(Boolean))],observed:[...new Set(findings.map(f=>f.observed).filter(Boolean))]};
+  });
+  const missing=cells.some(c=>!c.count),different=new Set(cells.map(c=>c.verdict)).size>1;
+  return {...group,cells,different,explanation:missing?'Coverage differs: a matching check was not recorded for every bank.':different?'Verdicts differ. Compare the recorded expectations and observations below; a blocked or unassessed check does not establish a bank defect.':'Same verdict across banks. Observations may differ because mock contracts and datasets differ.'};
+ }).sort((a,b)=>Number(b.different)-Number(a.different)||a.layer.localeCompare(b.layer)||a.key.localeCompare(b.key));
+}
 export function comparisonView(batch,runs){
  const members=batch.runIds.map(id=>runs.find(r=>r.id===id)).filter(Boolean);
  const rows=members.map(run=>({runId:run.id,connectionId:run.connectionId,name:run.name,status:run.status,error:run.error||null,finishedAt:run.finishedAt,quality:run.quality||null,layers:run.quality?qualityLayers(run.results||[]):null,reportId:run.reportId||null}));
  const keys=rows.map(r=>r.quality?.comparisonKey);
  const comparable=rows.length===batch.runIds.length&&rows.every(r=>r.status==='completed')&&keys.every(Boolean)&&new Set(keys).size===1;
- return {...batch,rows,comparable,comparabilityReason:comparable?'Same recorded workload group. Network and background-load limitations still apply.':rows.some(r=>['queued','running'].includes(r.status))?'Waiting for all suites to finish.':'Incomplete suites or different workload shapes, response-size bands, profiles or policies. Measurements are descriptive; do not rank these mocks.'};
+ return {...batch,rows,checks:sharedChecks(members),comparable,comparabilityReason:comparable?'Same recorded workload group. Network and background-load limitations still apply.':rows.some(r=>['queued','running'].includes(r.status))?'Waiting for all suites to finish.':'Incomplete suites or different workload shapes, response-size bands, profiles or policies. Measurements are descriptive; do not rank these mocks.'};
 }
