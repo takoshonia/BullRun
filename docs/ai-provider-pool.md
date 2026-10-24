@@ -6,6 +6,40 @@ Each connection has its own name, provider, model, private key file and quota gr
 
 ## Setup on the live server
 
+### Bulk dotenv file
+
+For a file of numbered keys, use this command in the server's Web Console:
+
+```sh
+python3 /root/configure-geobridge-ai.py --edit-env
+```
+
+It opens the private `/app/data/ai/api-keys.env` file in an editor (the host path is inside the `geobridge-data` Docker volume). Paste your keys, add exact model IDs for the providers you use, save and close. In nano: Ctrl+O, Enter, Ctrl+X. The helper applies private ownership/permissions and prints only a connection count and configuration warnings. No restart is needed. This is also menu option **7 Edit bulk key file**.
+
+```dotenv
+# Replace these model placeholders with exact API model IDs.
+GEMINI_MODEL=your-gemini-model-id
+OPENAI_MODEL=your-openai-model-id
+CLAUDE_MODEL=your-claude-model-id
+GROK_MODEL=your-grok-model-id
+
+# Paste real keys privately on the server, never in Git or chat.
+GOOGLE_API_KEY=your-first-key
+GOOGLE_API_KEY_2=your-second-key
+GOOGLE_API_KEY_3=your-third-key
+OPENAI_API_KEY_2=your-openai-key
+ANTHROPIC_API_KEY=your-claude-key
+XAI_API_KEY=your-grok-key
+```
+
+Recognised aliases: `GOOGLE_API_KEY` / `GEMINI_API_KEY`, `ANTHROPIC_API_KEY` / `CLAUDE_API_KEY`, `XAI_API_KEY` / `GROK_API_KEY`, and `OPENAI_API_KEY`. Each supports any numbered suffix. Key lines determine connection priority. Empty keys are ignored and identical provider/model/key combinations are deduplicated. Missing provider model settings disable those keys and produce nonsecret warnings. Optional per-key models include `GEMINI_MODEL_2`; optional independent quota groups include `GOOGLE_QUOTA_GROUP_2`. Use independent groups only for genuinely independent quotas.
+
+The file is parsed as dotenv data, never executed or sourced as shell code. Other application settings in it are ignored. Its contents are not added to process environment or sent to the browser. An existing bulk key file takes precedence over the menu's JSON pool, including if the file is empty; rename or remove it to return to menu connections. The existing JSON pool remains available for custom compatible endpoints and advanced configuration.
+
+For local use set `GEOBRIDGE_AI_ENV_FILE` to the private file's absolute path. The Docker image defaults to `/app/data/ai/api-keys.env`. Keep this file outside public web directories and source control; the conventional filename is excluded by Git and Docker. The helper is optional: an administrator may upload the file to the private volume with owner `1000:1000` and mode `0600`.
+
+### Individual menu connections
+
 In DigitalOcean → geobridge-backend → Web Console, as root, run:
 
 ```sh

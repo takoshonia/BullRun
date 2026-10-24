@@ -2,6 +2,7 @@
 data
 .env
 .env.*
+api-keys.env
 *.key
 *.pem
 *.p12
