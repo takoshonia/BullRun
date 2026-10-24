@@ -50,7 +50,9 @@ These are fictional demo identities. There is no public signup or real-bank/NBG 
 
 ## Live AI (optional)
 
-Copy `.env.example` to `.env` and configure `GEOBRIDGE_AI_KEY` and `GEOBRIDGE_AI_MODEL` securely. The launcher reads `.env`; plain `node src/server.mjs` reads process environment only. Never commit real credentials. The provider endpoint is fixed to the OpenAI Chat Completions API. No raw response, customer payload or secret is sent; only controlled test facts. IDs, section references, shape and numeric claims are validated. This does **not** guarantee factual correctness: output remains advisory and evidence is visible. Missing/provider failure/invalid output uses a labelled deterministic template.
+Multiple provider connections are supported: OpenAI, Gemini, Claude, Grok and OpenAI-compatible services. Use the private server setup helper to add connections in priority order; see [provider pool and failover](docs/ai-provider-pool.md).
+
+Copy `.env.example` to `.env` and configure `GEOBRIDGE_AI_KEY` and `GEOBRIDGE_AI_MODEL` securely. The launcher reads `.env`; plain `node src/server.mjs` reads process environment only. Never commit real credentials. Provider endpoints use the native or configured compatible adapter. No raw response, customer payload or secret is sent; only controlled test facts. IDs, section references, shape and numeric claims are validated. This does **not** guarantee factual correctness: output remains advisory and evidence is visible. Missing/provider failure/invalid output uses a labelled deterministic template.
 
 Saved full reports now support background English AI explanations in immutable report versions, with validated evidence references and a labelled English template fallback. See [English AI report setup](docs/english-ai-reports.md) for the live-server key setup command, limits and validation behavior.
 

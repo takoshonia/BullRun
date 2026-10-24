@@ -28,7 +28,7 @@ export function createNarrativeJobs(db,reports,{generate=generateNarrative}={}){
    if(!job)return;
    const source=reports.get(job.source_id);if(!source)throw Error('Report not found');
    const currentConfig=aiConfig();
-   const narrative=await generate(source.snapshot,{config:{...currentConfig,model:job.model==='unconfigured'?currentConfig.model:job.model,configured:currentConfig.configured&&job.model!=='unconfigured'}});
+   const narrative=await generate(source.snapshot,{config:{...currentConfig,configured:currentConfig.configured&&job.model!=='unconfigured'}});
    if(!db.prepare("SELECT id FROM report_narrative_jobs WHERE id=? AND lease=? AND status='running'").get(job.id,lease))return;
    const report=reports.saveNarrative(source.id,narrative,{requestId:'narrative-job-'+job.id,createdBy:job.actor});
    db.prepare("UPDATE report_narrative_jobs SET status='completed',report_id=?,error=NULL WHERE id=? AND lease=?").run(report.id,job.id,lease);
