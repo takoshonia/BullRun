@@ -56,6 +56,18 @@ test('HTTP workflows: authentication, CSRF, worker, evidence, reports, isolation
   assert.equal((await call('bank','/api/runs/'+reviewed.id+'/reports')).data.reports.length,2);
   assert.equal((await call('bank',reportUrl+'/html')).data,originalHtml.data,'old saved version stays unchanged');
   assert((await call('bank','/api/reports')).data.reports.some(r=>r.id===revised.data.id));
+  const explanationUrl=reportUrl+'/explanation';
+  for(const role of ['reviewer','tpp','standards'])assert.equal((await call(role,explanationUrl,'POST',{})).status,403);
+  assert.equal((await call('bank','/api/reports/'+done.reportId+'/explanation','POST',{})).status,404);
+  assert.equal((await fetch(origin+explanationUrl,{method:'POST',headers:{Origin:origin,Cookie:sessions.bank.cookie,'Content-Type':'application/json'},body:'{}'})).status,403);
+  const explanation=await call('bank',explanationUrl,'POST',{});assert.equal(explanation.status,202);
+  assert.equal((await call('bank',explanationUrl,'POST',{})).data.id,explanation.data.id);
+  let explanationJob;
+  for(let i=0;i<40;i++){explanationJob=await call('bank','/api/report-explanations/'+explanation.data.id);if(explanationJob.data.status==='completed')break;await new Promise(r=>setTimeout(r,100))}
+  assert.equal(explanationJob.data.status,'completed');
+  const explained=await call('bank','/api/reports/'+explanationJob.data.reportId);assert.equal(explained.data.snapshot.narrative.language,'en');assert.equal(explained.data.snapshot.narrative.mode,'deterministic_template');assert.equal(explained.data.snapshot.narrative.sourceReportId,reviewed.reportId);
+  assert.deepEqual(explained.data.snapshot.findings,saved.data.snapshot.findings);
+  assert.equal((await call('tpp','/api/report-explanations/'+explanation.data.id)).status,403);
   const gate=await call('operator','/api/gates','POST',{runId:done.id,name:'Platform-only candidate'});assert.equal(gate.data.decision,'HOLD');
   const valid=await call('tpp','/api/normalize','POST',{synthetic:true,operation:'balances',body:{balances:[{balanceAmount:{amount:'1.50',currency:'GEL'},balanceType:'interimAvailable'}]}});assert.equal(valid.data.data.balances[0].amount,'1.50');
   assert.equal((await call('tpp','/api/normalize','POST',{synthetic:true,operation:'balances',body:{balances:[{balanceAmount:{amount:'1.50'},balanceType:'interimAvailable'}]}})).status,422);
