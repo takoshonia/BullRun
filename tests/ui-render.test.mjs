@@ -9,10 +9,13 @@ test('all workspace views render without template exceptions; unsafe names are e
  const user={id:'operator',name:'Platform operator',tenant:'platform',role:'operator'};
  const run={id:'run-1',name:'<img src=x onerror=alert(1)>',profile:'platform',status:'completed',kind:'platform',results:assurance(),counts:{PASS:25},metrics:[],evidenceMode:'local_platform_controls',createdAt:new Date().toISOString(),finishedAt:new Date().toISOString(),rulesetHash:'abc',build:'0.1.0'};
  const w={user,connections:[{id:'c1',name:'Pending connection',tenant:'bank-demo',profile:'xs2a-0.8',status:'not_connected',environment:'pending',capabilities:{accounts:'unknown'}}],runs:[run],packs:[],profiles:[{id:'platform',name:'Platform',status:'active',note:'Engineering controls'}],rules:[],sources:[],schedules:[],gates:[],updates:[],ai:{configured:false}};
- const fetch=async url=>({ok:true,json:async()=>url==='/api/me'?{user,csrf:'test'}:url==='/api/events'?[]:w});
+ const fetch=async url=>({ok:true,json:async()=>url==='/api/me'?{user,csrf:'test'}:url==='/api/events'?[]:url.endsWith('/reports')?{reports:[{id:'report-1',runId:run.id,runName:'Saved report',version:1,createdAt:run.finishedAt}]}:w});
  const AsyncFunction=Object.getPrototypeOf(async function(){}).constructor;
- const execute=new AsyncFunction('document','fetch','setInterval','setTimeout','clearTimeout',code+'\nreturn {state,render};');
+ const execute=new AsyncFunction('document','fetch','setInterval','setTimeout','clearTimeout',code+'\nreturn {state,render,reportHistory,showReportExplanationJob};');
  const ui=await execute(doc,fetch,()=>{},()=>{},()=>{});
+ await ui.reportHistory(run.id);assert(element('#dialog-body').innerHTML.includes('Generate English explanations'));
+ ui.showReportExplanationJob({id:'job-1',status:'queued'});assert(element('#dialog-body').innerHTML.includes('Refresh status'));
+ ui.showReportExplanationJob({id:'job-1',status:'completed',reportId:'report-2'});assert(element('#dialog-body').innerHTML.includes('Open report with explanations'));
  for(const page of ['overview','audit','connections','explorer','monitor','reports','standards','gate','activity','detail']){
   ui.state.page=page;ui.state.run=run;ui.render();const html=element('#app').innerHTML;assert(html.length>1500,page);assert(!html.includes('<img src=x'),page+' must escape imported names');assert(!html.includes('NaN'),page+' should not invent missing metrics');
  }

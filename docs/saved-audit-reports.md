@@ -27,4 +27,4 @@ The Reports page lists saved bank reports. Completed audit details offer **Open 
 
 Bank users see their own reports, reviewers see authorized bank reports, and Operator sees authorized reports including diagnostics. TPP and standards roles cannot access saved audit reports. Snapshots project selected evidence metadata and findings rather than storing raw API response bodies or connection credentials. Existing Findings, Quality, JSON and CSV exports remain available; they are separate exports rather than these immutable report versions.
 
-Email delivery, AI narration and adapter mapping changes are outside this task.
+English AI explanations are described in [english-ai-reports.md](english-ai-reports.md). Email delivery and adapter mapping changes remain separate tasks.

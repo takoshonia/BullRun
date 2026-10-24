@@ -52,6 +52,8 @@ These are fictional demo identities. There is no public signup or real-bank/NBG 
 
 Copy `.env.example` to `.env` and configure `GEOBRIDGE_AI_KEY` and `GEOBRIDGE_AI_MODEL` securely. The launcher reads `.env`; plain `node src/server.mjs` reads process environment only. Never commit real credentials. The provider endpoint is fixed to the OpenAI Chat Completions API. No raw response, customer payload or secret is sent; only controlled test facts. IDs, section references, shape and numeric claims are validated. This does **not** guarantee factual correctness: output remains advisory and evidence is visible. Missing/provider failure/invalid output uses a labelled deterministic template.
 
+Saved full reports now support background English AI explanations in immutable report versions, with validated evidence references and a labelled English template fallback. See [English AI report setup](docs/english-ai-reports.md) for the live-server key setup command, limits and validation behavior.
+
 ## Architecture
 
 `Browser UI → authenticated HTTP API → SQLite records → worker thread → evidence/results → exports`
