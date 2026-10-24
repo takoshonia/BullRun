@@ -12,9 +12,9 @@ const empty=(title,text,action='')=>`<div class="empty"><div class="empty-icon">
 function toast(s){if(dialog.open){dialogNotice(s,false);return;}toastEl.textContent=s;toastEl.style.display='block';clearTimeout(toast.timer);toast.timer=setTimeout(()=>toastEl.style.display='none',5500)}
 const accountIdentity=user=>JSON.stringify([user.id,user.role,user.tenant]);
 async function api(url,options={}){
- const mutation=options.method&&options.method!=='GET'&&url!=='/api/login';
+ const verifySession=state.user&&url!=='/api/me'&&url!=='/api/login';
  let identity;
- if(mutation&&state.user){
+ if(verifySession){
   identity=accountIdentity(state.user);
   // Cookies are shared across tabs; never submit under a different account.
   const sessionResponse=await fetch('/api/me',{cache:'no-store'});

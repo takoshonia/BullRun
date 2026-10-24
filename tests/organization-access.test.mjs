@@ -40,6 +40,8 @@ test('organization accounts enforce bank isolation, NBG review powers and TPP pr
   let secondRun;for(let i=0;i<100;i++){secondRun=(await call('nbg','/api/runs/'+second.data.id)).data;if(secondRun.status==='completed')break;await sleep(100)}assert.equal(secondRun.status,'completed');
   assert.equal((await call('nbg','/api/compare','POST',{before:completed.id,after:secondRun.id})).status,200);
   const race=await fetch(origin+'/api/compare',{method:'POST',headers:{Origin:origin,Cookie:sessions.operator.cookie,'X-CSRF-Token':sessions.operator.csrf,'Content-Type':'application/json','X-GeoBridge-Account':JSON.stringify(['nbg','reviewer','nbg'])},body:JSON.stringify({before:completed.id,after:secondRun.id})});assert.equal(race.status,403);assert.equal((await race.json()).code,'SESSION_CHANGED');
+  const staleRead=await fetch(origin+'/api/connections/bank-bog-sandbox/readiness',{headers:{Cookie:sessions.operator.cookie,'X-GeoBridge-Account':JSON.stringify(['bank-bog','bank','bank-bog'])}});assert.equal(staleRead.status,403);assert.equal((await staleRead.json()).code,'SESSION_CHANGED');
+
 
   const schedule=await call('nbg','/api/schedules','POST',{kind:'evidence',packId:pack.id,minutes:60});assert.equal(schedule.status,201);assert.equal(schedule.data.tenant,'bank-bog');assert.equal(schedule.data.owner,'nbg');
   assert((await call('bank-bog','/api/workspace')).data.schedules.some(s=>s.id===schedule.data.id));assert(!(await call('bank-tbc','/api/workspace')).data.schedules.some(s=>s.id===schedule.data.id));assert.equal((await call('bank-tbc','/api/schedules/'+schedule.data.id,'DELETE')).status,404);

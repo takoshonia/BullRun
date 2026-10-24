@@ -23,3 +23,14 @@ test('switching the cookie to Operator never retries an NBG action as Operator',
  await assert.rejects(ui.api('/api/compare',{method:'POST',body:{before:'a',after:'b'}}),/changed in another tab/);
  assert.equal(ui.state.user,null);assert(!control.calls.some(c=>c.url==='/api/compare'));
 });
+
+test('readiness preflight detects another tab account before issuing a bank GET',async()=>{
+ const {ui,control}=await setup();control.user={id:'tpp-demo',role:'tpp',tenant:'tpp-demo'};
+ await assert.rejects(ui.api('/api/connections/mock-bog/readiness'),/changed in another tab/);
+ assert(!control.calls.some(c=>c.url.includes('/readiness')));assert.equal(ui.state.user,null);
+});
+test('readiness reads retain the verified account identity',async()=>{
+ const {ui,control}=await setup();await ui.api('/api/connections/mock-bog/readiness');
+ assert.deepEqual(control.calls.map(c=>c.url),['/api/me','/api/connections/mock-bog/readiness']);
+ assert.equal(control.calls[1].options.headers['X-GeoBridge-Account'],JSON.stringify(['nbg','reviewer','nbg']));
+});
