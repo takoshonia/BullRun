@@ -40,3 +40,6 @@ Operator-only controls appear when a configured BOG or Gringott synthetic target
 Changes affect other users of that mock; the UI asks for confirmation. Restoration intent is persisted before mutation, with a 60-600 second TTL (UI: 300 seconds). Expired controls restore after restart too. Failed restoration stays pending and retries every ten seconds. A flag already enabled outside GeoBridge is not overwritten. Turning off an unowned flag does nothing. Do not share Operator credentials with jury participants.
 
 Known GeoBridge demo-control state is recorded before and after each suite. If controls change or expire during the suite, comparison eligibility is removed and otherwise-passing performance assessments become unassessed. External mock changes cannot be detected by this bookkeeping and remain a limitation.
+
+## Shared-check matrix
+Each history entry includes a bank-column matrix aligned by mock assertion family or exact rule ID. Account-specific balance/pagination findings are grouped, retaining distinct expectations and observations. Different verdicts appear first. Missing checks are Not assessed; blocked prerequisites are not bank defects. Draft rules retain Needs review. Passing observations may differ without implying a failure. This view does not remove workload comparability limitations or infer root causes beyond recorded evidence.

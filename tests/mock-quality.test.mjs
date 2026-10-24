@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {captureQuality,assessMeasurements,comparisonView,validatePolicy,DEFAULT_POLICY,PLAN,qualityLayers} from '../src/mock-quality.mjs';
+import {captureQuality,assessMeasurements,comparisonView,validatePolicy,DEFAULT_POLICY,PLAN,qualityLayers,sharedChecks} from '../src/mock-quality.mjs';
 import {normalize} from '../src/security.mjs';
 
 const goodSamples=Array.from({length:30},(_,i)=>({operation:'balances',kind:'positive',outcome:'success',durationMs:i+1,timestamp:new Date().toISOString()}));
@@ -45,4 +45,20 @@ test('changing normalized dataset shape prevents comparable grouping',async()=>{
 test('comparison never ranks missing, failed, old or mismatched workload results',()=>{
  const batch={runIds:['one','two']},runs=['one','two'].map(id=>({id,status:'completed',quality:{comparisonKey:'group'},results:[]}));assert.equal(comparisonView(batch,runs).comparable,true);
  for(const altered of [[runs[0]],[runs[0],{...runs[1],status:'failed'}],[runs[0],{...runs[1],quality:null}],[runs[0],{...runs[1],quality:{comparisonKey:'other'}}]])assert.equal(comparisonView(batch,altered).comparable,false);
+});
+
+test('shared checks align bank prefixes, group accounts and explain verdict differences without inventing evidence',()=>{
+ const f=(id,verdict,observed,extra={})=>({id,verdict,observed,title:'Check',expected:'Expected',layer:'compatibility',basis:'mock_contract',...extra});
+ const checks=sharedChecks([
+  {results:[f('BOG-MOCK-ACCOUNTS','FAIL','Required fields missing'),f('BOG-MOCK-BALANCES-a','BLOCKED','Accounts failed'),f('BOG-MOCK-BALANCES-b','BLOCKED','Accounts failed'),f('draft','NEEDS_REVIEW','Draft',{basis:'standard'}),f('BOG-MOCK-AUTH','PASS','401',{layer:'security'})]},
+  {results:[f('TBC-MOCK-ACCOUNTS','PASS','2 accounts'),f('TBC-MOCK-BALANCES-other','PASS','Valid balances'),f('draft','NEEDS_REVIEW','Draft',{basis:'standard'})]}
+ ]);
+ const accounts=checks.find(c=>c.key==='mock:ACCOUNTS');assert.equal(accounts.different,true);assert.deepEqual(accounts.cells.map(c=>c.verdict),['FAIL','PASS']);assert.equal(accounts.cells[0].observed[0],'Required fields missing');
+ const balances=checks.find(c=>c.key==='mock:BALANCES');assert.deepEqual(balances.cells.map(c=>c.count),[2,1]);assert.equal(balances.cells[0].observed.length,1);
+ const draft=checks.find(c=>c.key==='rule:draft');assert.equal(draft.different,false);assert.deepEqual(draft.cells.map(c=>c.verdict),['NEEDS_REVIEW','NEEDS_REVIEW']);
+ const auth=checks.find(c=>c.key==='mock:AUTH');assert.equal(auth.cells[1].verdict,'NOT_ASSESSED');assert.match(auth.explanation,/Coverage differs/);
+});
+test('different passing observations do not imply a failed check and unmapped engine duplicates are excluded',()=>{
+ const rows=sharedChecks([{results:[{id:'GRINGOTT-ACCOUNTS',basis:'mock_contract',title:'Accounts',layer:'compatibility',verdict:'PASS',observed:'3 accounts'},{id:'MAP-1',basis:'common_contract',verdict:'FAIL'}]}, {results:[{id:'BOG-MOCK-ACCOUNTS',basis:'mock_contract',title:'Accounts',layer:'compatibility',verdict:'PASS',observed:'2 accounts'}]}]);
+ assert.equal(rows.length,1);assert.equal(rows[0].different,false);assert.match(rows[0].explanation,/Same verdict/);
 });
