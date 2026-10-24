@@ -18,3 +18,12 @@ contract.servers=[{url:'/'}];
 contract.info.description='Common AIS contract. Explicit synthetic adapters may execute mock calls; real-bank integrations remain blocked.';
 contract.paths['/bridge/v1/connections/{connectionId}/consents']={post:{summary:'Grant synthetic mock consent (not real OAuth)',parameters:[{name:'connectionId',in:'path',required:true,schema:{type:'string'}}],responses:{201:{description:'Owner-scoped consent reference; upstream tokens never returned'},503:{description:'BANK_NOT_CONNECTED'}}}};
 contract.paths['/bridge/v1/connections/{connectionId}/consents/{consentId}']={delete:{summary:'Revoke owner-scoped mock consent',parameters:['connectionId','consentId'].map(name=>({name,in:'path',required:true,schema:{type:'string'}})),responses:{200:{description:'Consent locally invalidated and upstream revocation confirmed'},403:{description:'Consent outside owner scope'}}}};
+
+const batchItemSchema={type:'object',required:['connectionId','consentId'],properties:{connectionId:{type:'string'},consentId:{type:'string'},accountId:{type:'string'}}};
+const batchRequestSchema={type:'object',required:['operation','requests'],properties:{operation:{type:'string',enum:['accounts','balances','transactions']},requests:{type:'array',minItems:2,maxItems:5,items:batchItemSchema}}};
+contract.paths['/bridge/v1/batch']={post:{
+ summary:'Request one common operation from 2-5 configured mock banks with independent owner-scoped consents',
+ description:'Partial success is explicit per bank. Active approved exact-value mappings run deterministically without runtime AI. Synthetic access only.',
+ requestBody:{required:true,content:{'application/json':{schema:batchRequestSchema}}},
+ responses:{200:{description:'Per-bank success data and safe mapping proof, or independent contract/consent error'},400:{description:'Invalid batch'},403:{description:'Role or request token denied'}}
+}};

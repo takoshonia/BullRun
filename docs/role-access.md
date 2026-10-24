@@ -41,3 +41,5 @@ Private pending connections are excluded from the TPP catalog. Only configured s
 Bank-facing demo pages use configured synthetic mock banks. Account provisioning no longer creates empty sandbox connections. Untouched, unreferenced legacy placeholders are retained under retired_connections and removed from active connections; customized or referenced records are preserved. Sandbox registration and specification setup remain available to Operator.
 
 Operator also has Mock comparison and time-limited synthetic fault controls when an administration key is configured. NBG cannot activate faults. See mock-quality-comparison.md for the measurement and recovery limits.
+
+API contract changes: NBG and Operator can inspect schema history and propose mappings. NBG alone approves baselines and semantic meaning. Operator alone tests, activates, rolls back and controls the synthetic overlay. TPP and bank roles cannot use the review API. Existing role access remains unchanged. TPP batch operations use separate owner-scoped bank consents.

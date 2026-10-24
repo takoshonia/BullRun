@@ -400,3 +400,8 @@
 .shared-check-heading{border-top:1px solid var(--line)}.shared-check-table th:first-child{width:260px;min-width:230px}.shared-check-table td{vertical-align:top;min-width:260px}.shared-check-table tbody th{position:static;background:var(--white,#fff);text-align:left;vertical-align:top;font-weight:400}.shared-check-table th small{display:block;margin:8px 0;color:var(--muted);overflow-wrap:anywhere}.shared-check-table .check-difference>th{border-left:3px solid #b78742;background:#fffbf3}.shared-check-table dl{margin:16px 0 0}.shared-check-table dt{font-size:12px;font-weight:700;color:var(--teal);margin-top:12px}.shared-check-table dd{margin:4px 0 0;overflow-wrap:anywhere}.shared-check-table dd p{margin:0 0 8px;font-size:13px;line-height:1.65}
 .shared-check-table tbody th{text-transform:none;letter-spacing:normal;font-size:14px}.shared-check-table table{min-width:850px}
 .shared-check-table table{table-layout:fixed;width:100%}.shared-check-table th,.shared-check-table td{white-space:normal;overflow-wrap:anywhere}.shared-check-table tbody th{max-width:260px}.shared-check-table tbody th .footnote{white-space:normal}
+
+.contract-diff,.contract-candidate{padding:18px 0;border-top:1px solid var(--line)}.contract-diff p,.contract-candidate p{overflow-wrap:anywhere}.contract-diff pre{max-height:260px;overflow:auto}
+
+.batch-proof table{min-width:380px;table-layout:auto}.batch-proof th,.batch-proof td{white-space:normal;overflow-wrap:anywhere;padding:10px;font-size:12px}.batch-proof td{font-variant-numeric:tabular-nums}.batch-proof th{background:#f5f8f7}
+.batch-proof th{font-size:10px;letter-spacing:.02em}.batch-proof th:last-child,.batch-proof td:last-child{white-space:nowrap;min-width:70px}

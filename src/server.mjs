@@ -1,3 +1,4 @@
+import {createContractReview} from './contract-review.mjs';
 import {createMockDemo} from './mock-demo.mjs';
 import {validatePolicy,comparisonView,SUITE_VERSION} from './mock-quality.mjs';
 import {createProviderRouter} from './ai-providers.mjs';
@@ -24,8 +25,10 @@ import {workspacePayload} from './workspace-access.mjs';
 import {createAvailability,parseTargets} from './availability.mjs';
 import {seedAdapterConnections,adapterTargets} from './adapters/registry.mjs';
 import {createCommonAIS} from './adapters/common-ais.mjs';
-const commonAIS=createCommonAIS();
+const contractReview=createContractReview({all,get,put,event,router:()=>providerRouter});
+const commonAIS=createCommonAIS({processResponse:contractReview.process});
 const providerRouter=createProviderRouter({db});
+const contractTick=setInterval(()=>{contractReview.tick().catch(()=>console.error('Contract monitor unavailable'))},300000);contractTick.unref();
 const narrativeJobs=createNarrativeJobs(db,savedReports,{generate:(snapshot,options)=>generateNarrative(snapshot,{...options,router:providerRouter})});
 const narrativeTick=setInterval(()=>{narrativeJobs.tick().catch(()=>console.error('Report explanation scheduler unavailable'))},1000);narrativeTick.unref();
 const availability=createAvailability({db,targets:parseTargets(process.env.GEOBRIDGE_MOCK_TARGETS)});
@@ -164,6 +167,29 @@ const server=http.createServer(async(req,res)=>{
  if(action==='explain'&&method==='POST'){const b=await body(req);const f=r.results.find(x=>x.id===b.findingId);if(!f)throw error(404,'Finding not found');const key=sha({tenant:r.tenant,f,language:b.language,model:aiConfig().model,configured:aiConfig().configured,promptVersion:'finding-2'});const cached=f.verdict==='BLOCKED'?null:get('explanations',key);if(cached)return send(res,200,{...cached,cached:true});const result=await explain(f,b.language,{router:providerRouter});if(result.mode==='live_ai_advisory')put('explanations',{...result,id:key,tenant:r.tenant});event(u.id,'explanation_generated',r.id,{mode:result.mode});return send(res,200,result)}
  }
  if(p.match(/^\/api\/packs\/[^/]+$/)&&method==='GET'){requireRole(u,'bank','operator');const pack=get('packs',p.split('/')[3]);if(!scope(u,pack))throw error(404,'Evidence not found');return send(res,200,pack)}
+ if(p.match(/^\/api\/contract-review\/snapshots\/[a-f0-9]+$/)&&method==='GET'){requireRole(u,'operator','reviewer');const snapshot=get('contract_snapshots',p.split('/')[4]);if(!snapshot)throw error(404,'Schema snapshot not found');return send(res,200,snapshot.document)}
+ if(p==='/api/contract-review'&&method==='GET'){requireRole(u,'operator','reviewer');return send(res,200,contractReview.view())}
+ if(p==='/api/contract-review/action'&&method==='POST'){
+  requireRole(u,'operator','reviewer');const b=await body(req);if(!b||typeof b!=='object'||Array.isArray(b))throw error(400,'Contract action object required');let result;
+  if(b.action==='scan'){result=await contractReview.scan(b.connectionId,u.id)}
+  else if(b.action==='baseline'){requireRole(u,'reviewer');contractReview.baseline(b.connectionId,b.snapshotId,u.id,b.note);result={ok:true}}
+  else if(b.action==='demo'){requireRole(u,'operator');contractReview.demo(b.connectionId,b.enabled,u.id);result={ok:true}}
+  else if(b.action==='propose')result=await contractReview.propose(b.connectionId,b.mapping,u.id);
+  else if(b.action==='suggest')result=await contractReview.suggest(b.connectionId,u.id);
+  else if(b.action==='test'){requireRole(u,'operator');result=await contractReview.test(b.id,u.id)}
+  else if(b.action==='approve'){requireRole(u,'reviewer');result=contractReview.approve(b.id,u.id,b.note)}
+  else if(b.action==='activate'){requireRole(u,'operator');result=contractReview.activate(b.id,u.id)}
+  else if(b.action==='rollback'){requireRole(u,'operator');result=contractReview.rollback(b.connectionId,u.id)}
+  else throw error(400,'Unknown contract action');return send(res,200,result||{ok:true});
+ }
+ if(p==='/bridge/v1/batch'&&method==='POST'){
+  requireRole(u,'tpp','operator');const b=await body(req);
+  if(!['accounts','balances','transactions'].includes(b.operation)||!Array.isArray(b.requests)||b.requests.length<2||b.requests.length>5||b.requests.some(x=>!x||typeof x.connectionId!=='string'||x.connectionId.length>100||typeof x.consentId!=='string'||x.consentId.length>100||x.accountId!==undefined&&typeof x.accountId!=='string')||new Set(b.requests.map(x=>x.connectionId)).size!==b.requests.length)throw error(400,'Select 2-5 distinct mock banks and one supported operation');
+  const results=await Promise.all(b.requests.map(async item=>{
+   try{const c=get('connections',item.connectionId);if(!c||!c.synthetic||c.status!=='mock_configured')throw error(404,'Published mock not found');const value=await commonAIS.read(u,c.id,item.consentId,b.operation,item.accountId);return {connectionId:c.id,status:'success',...value}}
+   catch(e){return {connectionId:item.connectionId,status:'error',proof:e.safeProof||null,error:'Bank request failed: '+redact(String(e.message)).slice(0,500)}}
+  }));event(u.id,'common_api_batch','batch',{operation:b.operation,banks:results.map(r=>({connectionId:r.connectionId,status:r.status}))});return send(res,200,{operation:b.operation,synthetic:true,results});
+ }
  if(p==='/api/normalize'&&method==='POST'){requireRole(u,'tpp','operator');const b=await body(req);if(b.synthetic!==true)throw error(400,'Synthetic data confirmation required');try{return send(res,200,{data:normalize(b.operation,b.body),meta:{mode:'local_mapping_preview',bankCall:false,adapterVersion:'common-contract-0.1.0'}})}catch(e){throw error(422,'UPSTREAM_CONTRACT_VIOLATION: '+e.message)}}
  if(p.startsWith('/bridge/v1/')){
   requireRole(u,'tpp','operator');
@@ -193,4 +219,4 @@ const server=http.createServer(async(req,res)=>{
 });
 server.on('error',e=>{console.error(e.code==='EADDRINUSE'?'GeoBridge port is already in use. Close the previous instance or choose another PORT.':e.message);process.exitCode=1;clearInterval(tick)});
 server.listen(PORT,HOST,()=>{console.log(`GeoBridge is running at ${origin}`);console.log('Demo credentials: '+path.join(dataDir,'demo-credentials.json'));console.log(adapterTargets().length?'Synthetic AIS adapters configured; no real bank connected.':'No bank adapters configured.');});
-process.on('SIGTERM',()=>{availability.stop();clearInterval(demoTick);clearInterval(narrativeTick);clearInterval(reportBackfill);clearInterval(tick);active?.terminate();server.close(()=>process.exit())});
+process.on('SIGTERM',()=>{availability.stop();clearInterval(demoTick);clearInterval(contractTick);clearInterval(narrativeTick);clearInterval(reportBackfill);clearInterval(tick);active?.terminate();server.close(()=>process.exit())});
