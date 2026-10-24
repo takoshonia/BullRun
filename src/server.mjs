@@ -1,3 +1,4 @@
+import {createContractScheduler,contractIntervalMinutes} from './contract-scheduler.mjs';
 import {createContractReview} from './contract-review.mjs';
 import {createMockDemo} from './mock-demo.mjs';
 import {validatePolicy,comparisonView,SUITE_VERSION} from './mock-quality.mjs';
@@ -28,7 +29,9 @@ import {createCommonAIS} from './adapters/common-ais.mjs';
 const contractReview=createContractReview({all,get,put,event,router:()=>providerRouter});
 const commonAIS=createCommonAIS({processResponse:contractReview.process});
 const providerRouter=createProviderRouter({db});
-const contractTick=setInterval(()=>{contractReview.tick().catch(()=>console.error('Contract monitor unavailable'))},300000);contractTick.unref();
+const contractScanMinutes=contractIntervalMinutes();
+const contractScheduler=createContractScheduler({targets:adapterTargets,get,scan:contractReview.scan,minutes:contractScanMinutes});
+const contractTick=setInterval(()=>{contractScheduler.tick().catch(()=>console.error('Contract monitor unavailable'))},60000);contractTick.unref();
 const narrativeJobs=createNarrativeJobs(db,savedReports,{generate:(snapshot,options)=>generateNarrative(snapshot,{...options,router:providerRouter})});
 const narrativeTick=setInterval(()=>{narrativeJobs.tick().catch(()=>console.error('Report explanation scheduler unavailable'))},1000);narrativeTick.unref();
 const availability=createAvailability({db,targets:parseTargets(process.env.GEOBRIDGE_MOCK_TARGETS)});
@@ -168,7 +171,7 @@ const server=http.createServer(async(req,res)=>{
  }
  if(p.match(/^\/api\/packs\/[^/]+$/)&&method==='GET'){requireRole(u,'bank','operator');const pack=get('packs',p.split('/')[3]);if(!scope(u,pack))throw error(404,'Evidence not found');return send(res,200,pack)}
  if(p.match(/^\/api\/contract-review\/snapshots\/[a-f0-9]+$/)&&method==='GET'){requireRole(u,'operator','reviewer');const snapshot=get('contract_snapshots',p.split('/')[4]);if(!snapshot)throw error(404,'Schema snapshot not found');return send(res,200,snapshot.document)}
- if(p==='/api/contract-review'&&method==='GET'){requireRole(u,'operator','reviewer');return send(res,200,contractReview.view())}
+ if(p==='/api/contract-review'&&method==='GET'){requireRole(u,'operator','reviewer');return send(res,200,{...contractReview.view(),monitoring:{schemaIntervalMinutes:contractScanMinutes,availability:'separate_monitor',responseValidation:'during_existing_requests',bankWebhookConnected:false}})}
  if(p==='/api/contract-review/action'&&method==='POST'){
   requireRole(u,'operator','reviewer');const b=await body(req);if(!b||typeof b!=='object'||Array.isArray(b))throw error(400,'Contract action object required');let result;
   if(b.action==='scan'){result=await contractReview.scan(b.connectionId,u.id)}

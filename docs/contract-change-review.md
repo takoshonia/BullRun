@@ -6,7 +6,7 @@ Configured synthetic adapters only. No external mock service is modified. Produc
 
 `API contract changes` is visible to Operator and NBG. Bank engineers and TPPs cannot read its schemas, proposal records or controls. TPPs use `TPP explorer` and owner-scoped simulated consents.
 
-- Every five minutes while GeoBridge is running, configured `/openapi.json` documents are fetched with fixed-origin, bounded transports. Operator/NBG can also scan manually.
+- Every 24 hours by default while GeoBridge is running, configured `/openapi.json` documents are fetched with fixed-origin, bounded transports. Operator/NBG can also scan manually.
 - Canonical content hashes identify immutable schema snapshots. Fetch status is separate; an outage or invalid document does not become a contract change. Repeated identical transitions are deduplicated.
 - Changes retain source JSON pointers, before/after values, classification and impacted common operations where dependency references establish them. Unknown applicability remains explicit.
 - Only NBG can approve an original schema baseline. Snapshot JSON is available for inspection before approval.
@@ -52,3 +52,9 @@ Schema changes and response mismatches write deduplicated `contract_notification
 - Polling runs only while the server is running. No uptime/SLA or guaranteed immediate change detection is claimed.
 - AI integration is tested with validated provider doubles and existing provider protocol tests, not a paid live AI invocation in this task.
 - Notification delivery is intentionally not implemented.
+
+## Scan scheduling
+
+`GEOBRIDGE_CONTRACT_SCAN_MINUTES=1440` is the default (range 5-10080 minutes). A lightweight minute timer checks persisted per-bank last-attempt timestamps; it only fetches OpenAPI when due. Manual scans update the same timestamp. Restarting does not reset the daily schedule. Failed fetches retain status and are retried on the configured interval, without becoming schema changes.
+
+Availability monitoring remains independent. Existing-request structural validation performs no additional bank fetch. The internal scheduler `notify(connectionId)` can trigger an immediate, coalesced scan after a future bank-specific integration verifies a webhook signature, freshness and bank identity. No public webhook endpoint or connected bank feed is provided or claimed in this version.
