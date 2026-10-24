@@ -6,7 +6,7 @@ const error=(status,message)=>Object.assign(Error(message),{status});
 
 // Ephemeral, owner-scoped mock credentials. Restart requires fresh simulated consent.
 // No token/code is persisted in SQLite or returned to a browser.
-export function createCommonAIS(){
+export function createCommonAIS({processResponse=(cid,op,body)=>({body,proof:null})}={}){
  const sessions=new Map(),pendingOwners=new Map();let pending=0;
  const prune=()=>{for(const [id,s]of sessions)if(s.expiresAt<=Date.now())sessions.delete(id);};
  function adapter(id){if(!adapterTargets().some(t=>t.id===id))throw error(503,'BANK_NOT_CONNECTED');return createAdapter(id,{signal:AbortSignal.timeout(15000)});}
@@ -29,13 +29,13 @@ export function createCommonAIS(){
    if(account&&!s.accounts.has(account))throw error(403,'Account not included in this consent');
    const current=await a.consentStatus(s);
    if(current.consentStatus!=='valid'||!Number.isFinite(Date.parse(current.validUntil))||Date.parse(current.validUntil)<=Date.now()){sessions.delete(id);throw error(403,'Upstream consent is not valid');}
-   let data;
-   if(operation==='accounts')data=a.map('accounts',requireResponse(await a.listAccounts(s)));
-   else if(operation==='balances')data=a.map('balances',requireResponse(await a.getBalances(s,account)));
+   let data,proof=null;const mapped=(op,raw)=>{const result=processResponse(connection,op,raw);proof=result.proof;return a.map(op,result.body)};if(operation!=='accounts'&&!account)account=[...s.accounts][0];if(operation!=='accounts'&&!account)throw error(422,'No consented account available');
+   if(operation==='accounts')data=mapped('accounts',requireResponse(await a.listAccounts(s)));
+   else if(operation==='balances')data=mapped('balances',requireResponse(await a.getBalances(s,account)));
    else if(operation==='transactions')data=(await a.listTransactions(s,account)).data;
    else throw error(404,'Unsupported common operation');
    session(user,connection,id); // Reject a response if local revocation raced the upstream read.
-   return {data,meta:{synthetic:true,evidenceMode:'mock_http',connectionId:connection,adapterVersion:a.version,notice:'Synthetic API data; not an official bank observation.'}};
+   return {data,proof,meta:{synthetic:true,evidenceMode:'mock_http',connectionId:connection,adapterVersion:a.version,notice:'Synthetic API data; not an official bank observation.'}};
   },
   clearOwner(owner){for(const [id,s]of sessions)if(s.owner===owner)sessions.delete(id);}
  };
