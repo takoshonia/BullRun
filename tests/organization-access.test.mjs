@@ -21,6 +21,10 @@ test('organization accounts enforce bank isolation, NBG review powers and TPP pr
   async function call(user,url,method='GET',body){const session=sessions[user];const r=await fetch(origin+url,{method,headers:{Origin:origin,Cookie:session.cookie,'X-CSRF-Token':session.csrf,'Content-Type':'application/json'},...(body?{body:JSON.stringify(body)}:{})});return {status:r.status,data:await r.json()}}
   for(const bank of ['bog','tbc','gringott']){const w=(await call('bank-'+bank,'/api/workspace')).data;assert(w.connections.length);assert(w.connections.every(c=>c.tenant==='bank-'+bank));assert(w.rules.every(r=>r.status==='approved'));assert.equal(w.diagnosticsRuns.length,0)}
   assert.equal((await call('bank-bog','/api/connections/bank-tbc-sandbox/readiness')).status,404);
+  for(const user of ['bank-bog','tpp-demo']){assert.equal((await call(user,'/api/mock-demo')).status,403);assert.equal((await call(user,'/api/mock-demo/bog','POST',{defect:'slowResponse',enabled:true})).status,403);assert.equal((await call(user,'/api/mock-comparisons')).status,403);assert.equal((await call(user,'/api/mock-comparisons','POST',{})).status,403)}
+  assert.equal((await call('nbg','/api/mock-demo')).status,403);assert.equal((await call('nbg','/api/mock-comparisons')).status,200);
+  assert.equal((await call('nbg','/api/mock-comparisons','POST',{connectionIds:['bank-bog-sandbox','bank-tbc-sandbox'],requestId:crypto.randomUUID()})).status,404);
+
   assert.equal((await call('bank-bog','/api/runs','POST',{kind:'spec',connectionId:'bank-tbc-sandbox'})).status,404);
   for(const user of ['nbg','tpp-demo'])assert.equal((await call(user,'/api/connections','POST',{})).status,403);
   const w=(await call('nbg','/api/workspace')).data;assert.equal(w.connections.length,3);assert(w.connections.every(c=>!c.authentication&&!c.baseUrl));assert(w.rules.some(r=>r.status==='draft'));

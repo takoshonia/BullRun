@@ -42,6 +42,8 @@ test('actual Gringott -> consent/common AIS -> captured audit/reports -> injecte
   const tx=await call('tpp',bridge+'/accounts/acc_1001/transactions','GET',undefined,h);assert.equal(tx.status,200);assert.equal(tx.data.data.transactions.length,4);assert(tx.data.data.transactions.every(t=>t.status==='booked'));
   assert.equal((await call('tpp',bridge+'/consents/'+cid,'DELETE')).status,200);
   assert.equal((await call('tpp',bridge+'/accounts','GET',undefined,h)).status,403);
+  const qualityRequest=await call('bank','/api/runs','POST',{kind:'bank',connectionId:'mock-gringott',qualitySuite:true});assert.equal(qualityRequest.status,201);let qualityRun;
+  for(let i=0;i<300;i++){qualityRun=(await call('bank','/api/runs/'+qualityRequest.data.id)).data;if(['completed','failed'].includes(qualityRun.status))break;await sleep(25)}assert.equal(qualityRun.status,'completed',qualityRun.error);assert.equal(qualityRun.quality.measurement.attempts,30);assert.equal(qualityRun.results.find(f=>f.id==='DEMO-CONSENT-BINDING').verdict,'NOT_ASSESSED');assert(qualityRun.quality.comparisonKey);
   const healthy=await audit();assert.equal(healthy.evidenceMode,'mock_http');assert(healthy.counts.NEEDS_REVIEW>0);assert(!healthy.counts.FAIL);assert(healthy.metrics.some(m=>m.operation==='transactions'&&m.attempts>0));
   assert(healthy.specHash);assert.equal(healthy.adapterVersion,'gringott-mock-v1');
   assert(healthy.results.some(f=>f.id==='GRINGOTT-REVOKED'&&f.verdict==='PASS'));

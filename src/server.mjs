@@ -1,3 +1,5 @@
+import {createMockDemo} from './mock-demo.mjs';
+import {validatePolicy,comparisonView,SUITE_VERSION} from './mock-quality.mjs';
 import {createProviderRouter} from './ai-providers.mjs';
 import {generateNarrative} from './report-narrative.mjs';
 import {aiConfig} from './ai-config.mjs';
@@ -30,6 +32,8 @@ const availability=createAvailability({db,targets:parseTargets(process.env.GEOBR
 availability.start();
 seed();provisionDemoAccounts();initRules();
 seedAdapterConnections({get,put});
+const mockDemo=createMockDemo({targets:parseTargets(process.env.GEOBRIDGE_MOCK_TARGETS),records:all,get,put,event});
+const demoTick=setInterval(()=>{mockDemo.tick().catch(()=>console.error('Mock demo restoration unavailable'))},10000);demoTick.unref();
 for(const r of all('runs').filter(x=>['running','queued'].includes(x.status)))put('runs',{...r,status:'interrupted',error:'Server restarted. Rerun to obtain a complete result.'});
 const reportBackfill=setInterval(()=>{try{const result=savedReports.backfill(1);for(const failure of result.errors)console.error('Report backfill failed for audit',failure.runId)}catch{console.error('Report backfill could not access storage')}},1000);reportBackfill.unref();
 const PORT=Number(process.env.PORT||4317),HOST=process.env.GEOBRIDGE_HOST||'127.0.0.1';
@@ -42,16 +46,19 @@ const scope=(u,obj)=>['operator','bank','reviewer'].includes(u.role)&&obj&&autho
 const error=(status,message)=>Object.assign(Error(message),{status});
 function requireRole(u,...roles){if(!roles.includes(u.role))throw error(403,'Your role cannot perform this action')}
 function visible(u,kind){return all(kind).filter(x=>scope(u,x))}
-function enqueue(u,body){
+function enqueue(u,body,{batchId=null}={}){
  if(!u||u.disabled)throw error(403,'Account is disabled');
  requireRole(u,'operator','bank','reviewer');
  if(body.kind==='platform')requireRole(u,'operator');
- if(visible(u,'runs').some(x=>['queued','running'].includes(x.status)))throw error(409,'Finish or stop the current run first');
+ if(!batchId&&visible(u,'runs').some(x=>['queued','running'].includes(x.status)))throw error(409,'Finish or stop the current run first');
  if(!['platform','evidence','bank','spec'].includes(body.kind))throw error(400,'Select a valid audit mode');
+ if(body.qualitySuite!==undefined&&typeof body.qualitySuite!=='boolean')throw error(400,'Invalid quality suite flag');
+ if(body.qualitySuite&&body.kind!=='bank')throw error(400,'Quality suite requires a configured mock bank');
+ let qualityPolicy=null;if(body.qualitySuite){try{qualityPolicy=validatePolicy(body.policy)}catch(e){throw error(400,e.message)}}
  let pack;if(body.kind==='evidence'){pack=get('packs',body.packId);if(!scope(u,pack))throw error(404,'Evidence not found')}
  let connection;if(['bank','spec'].includes(body.kind)){connection=get('connections',body.connectionId);if(!scope(u,connection))throw error(404,'Connection not found')}
  if(body.kind==='bank'){const readiness=bankReadiness(connection,adapterTargets());if(!readiness.ready)throw error(409,readiness.reasons.map(r=>r.message).join(' '))}
- const r=put('runs',{id:id(),name:body.kind==='platform'?'System self-checks':body.kind==='spec'?'Specification review - '+connection.name:pack?'Evidence review · '+pack.name:(adapterTargets().some(t=>t.id===connection.id)?'Mock HTTP audit · ':'Sandbox readiness · ')+connection.name,tenant:connection?.tenant||pack?.tenant||u.tenant,actor:u.id,kind:body.kind,packId:pack?.id,connectionId:connection?.id,profile:pack?.profile||connection?.profile||'platform',status:'queued',progress:0,createdAt:new Date().toISOString(),results:[],metrics:[],counts:{}});
+ const r=put('runs',{id:id(),name:body.qualitySuite?'Mock quality suite - '+connection.name:body.kind==='platform'?'System self-checks':body.kind==='spec'?'Specification review - '+connection.name:pack?'Evidence review · '+pack.name:(adapterTargets().some(t=>t.id===connection.id)?'Mock HTTP audit · ':'Sandbox readiness · ')+connection.name,tenant:connection?.tenant||pack?.tenant||u.tenant,actor:u.id,qualitySuite:body.qualitySuite===true,qualityPolicy,comparisonId:batchId,kind:body.kind,packId:pack?.id,connectionId:connection?.id,profile:pack?.profile||connection?.profile||'platform',status:'queued',progress:0,createdAt:new Date().toISOString(),results:[],metrics:[],counts:{}});
  event(u.id,'run_queued',r.id,{kind:r.kind});return r;
 }
 const tick=setInterval(()=>{try{
@@ -109,6 +116,27 @@ const server=http.createServer(async(req,res)=>{
  if(p==='/api/compare'&&method==='POST'){const b=await body(req),before=get('runs',b.before),after=get('runs',b.after);if(!scope(u,before)||!scope(u,after))throw error(404,'Run not found');if(before.status!=='completed'||after.status!=='completed')throw error(400,'Both runs must be completed');try{return send(res,200,compareRuns(before,after))}catch(e){throw error(400,e.message)}}
  if(p==='/api/spec-diff'&&method==='POST'){requireRole(u,'reviewer','operator');const b=await body(req);if(!b.before?.paths||!b.after?.paths)throw error(400,'Provide before and after OpenAPI objects with paths');return send(res,200,specDiff(b.before,b.after))}
  if(p==='/api/logout'&&method==='POST'){commonAIS.clearOwner(u.id);db.prepare('DELETE FROM sessions WHERE id=?').run(session.id);res.setHeader('Set-Cookie','geobridge=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0');return send(res,200,{ok:true})}
+ if(p==='/api/mock-demo'&&method==='GET'){requireRole(u,'operator');return send(res,200,mockDemo.list())}
+ const demoMatch=p.match(/^\/api\/mock-demo\/([a-z0-9-]+)$/);
+ if(demoMatch&&method==='POST'){requireRole(u,'operator');try{return send(res,200,await mockDemo.change(demoMatch[1],await body(req),u.id))}catch(e){throw error(400,e.message)}}
+ if(p==='/api/mock-comparisons'){
+  requireRole(u,'operator','reviewer');
+  if(method==='GET')return send(res,200,{comparisons:all('mock_comparisons').filter(b=>b.tenants.every(t=>authorized(u,t))).slice(0,30).map(b=>comparisonView(b,all('runs')))});
+  if(method==='POST'){
+   const b=await body(req);if(!Array.isArray(b.connectionIds)||b.connectionIds.length<2||b.connectionIds.length>5||new Set(b.connectionIds).size!==b.connectionIds.length||b.connectionIds.some(x=>typeof x!=='string'))throw error(400,'Select 2-5 distinct configured mock banks');
+   if(typeof b.requestId!=='string'||!/^[0-9a-f-]{36}$/i.test(b.requestId))throw error(400,'A unique request ID is required');
+   let policy;try{policy=validatePolicy(b.policy)}catch(e){throw error(400,e.message)}
+   const fingerprint=sha({connections:b.connectionIds,policy});const existing=all('mock_comparisons').find(x=>x.actor===u.id&&x.requestId===b.requestId);
+   if(existing){if(existing.fingerprint!==fingerprint)throw error(409,'Request ID already used for different settings');return send(res,200,comparisonView(existing,all('runs')))}
+   const targets=b.connectionIds.map(cid=>get('connections',cid));
+   if(targets.some(c=>!scope(u,c)||!adapterTargets().some(t=>t.id===c.id&&t.tenant===c.tenant)))throw error(404,'Configured mock bank not found');
+   if(all('runs').some(r=>['queued','running'].includes(r.status)))throw error(409,'Wait for the active audit queue to finish before starting a comparison');
+   const batchId=id();db.exec('BEGIN IMMEDIATE');let batch;
+   try{const runs=targets.map(c=>enqueue(u,{kind:'bank',connectionId:c.id,qualitySuite:true,policy:{minSuccessRate:policy.minSuccessRate,p95Ms:policy.p95Ms}},{batchId}));batch=put('mock_comparisons',{id:batchId,actor:u.id,requestId:b.requestId,fingerprint,tenants:[...new Set(targets.map(c=>c.tenant))],runIds:runs.map(r=>r.id),suiteVersion:SUITE_VERSION,policy,createdAt:new Date().toISOString()});event(u.id,'mock_comparison_queued',batchId,{runIds:batch.runIds});db.exec('COMMIT')}catch(e){db.exec('ROLLBACK');throw e}
+   return send(res,201,comparisonView(batch,all('runs')));
+  }
+  throw error(405,'Method not allowed');
+ }
  if(p==='/api/workspace'&&method==='GET')return send(res,200,workspacePayload(u,{records:all,profiles,sources:sourceRegistry(),aiConfigured:aiConfig().configured,canSee:authorized,reportSummaries:savedReports.listVisible(u)}));
  if(p==='/api/connections'&&method==='POST'){requireRole(u,'bank','operator');const {errors,connection}=validateRegistration(await body(req),profiles);if(Object.keys(errors).length)throw Object.assign(error(400,'Check the required connection fields.'),{fieldErrors:errors});try{allowedURL(connection.baseUrl,allowedHosts)}catch(e){throw Object.assign(error(400,'Sandbox API host requires operator approval: '+e.message),{fieldErrors:{baseUrl:e.message}})}const c=put('connections',{...connection,id:id(),tenant:u.role==='operator'?'bank-demo':u.tenant,status:'not_connected',capabilities:Object.fromEntries(['accounts','balances','transactions'].map(op=>[op,'unknown'])),createdAt:new Date().toISOString(),adapter:null});event(u.id,'connection_registered',c.id);return send(res,201,c)}
  if(p.match(/^\/api\/connections\/[^/]+\/spec$/)&&method==='POST'){requireRole(u,'bank','operator');const cid=p.split('/')[3],c=get('connections',cid);if(!scope(u,c))throw error(404,'Connection not found');const b=await body(req),spec=b.spec;if(!spec||!/^3\./.test(spec.openapi)||!spec.paths)throw error(400,'Provide an OpenAPI 3 JSON document');const text=JSON.stringify(spec);if(text.includes('"$ref":"http'))throw error(400,'Remote $ref is not resolved. Bundle references locally.');const paths=Object.keys(spec.paths);if(paths.length>500)throw error(400,'Too many paths');put('specs',{id:cid,tenant:c.tenant,spec:redact(spec),sha256:sha(spec),uploadedAt:new Date().toISOString()});put('connections',{...c,specHash:sha(spec),operationCount:paths.length});event(u.id,'spec_uploaded',cid,{hash:sha(spec),paths:paths.length});let runId=null;try{runId=enqueue(u,{kind:'spec',connectionId:cid}).id}catch(e){if(e.status!==409)throw e}return send(res,200,{hash:sha(spec),paths:paths.length,runId,notice:runId?'Specification recorded; selected static checks queued. Runtime bank behavior is not assessed.':'Specification recorded. Finish the active run, then select Review specification on this connection.'})}
@@ -165,4 +193,4 @@ const server=http.createServer(async(req,res)=>{
 });
 server.on('error',e=>{console.error(e.code==='EADDRINUSE'?'GeoBridge port is already in use. Close the previous instance or choose another PORT.':e.message);process.exitCode=1;clearInterval(tick)});
 server.listen(PORT,HOST,()=>{console.log(`GeoBridge is running at ${origin}`);console.log('Demo credentials: '+path.join(dataDir,'demo-credentials.json'));console.log(adapterTargets().length?'Synthetic AIS adapters configured; no real bank connected.':'No bank adapters configured.');});
-process.on('SIGTERM',()=>{availability.stop();clearInterval(narrativeTick);clearInterval(reportBackfill);clearInterval(tick);active?.terminate();server.close(()=>process.exit())});
+process.on('SIGTERM',()=>{availability.stop();clearInterval(demoTick);clearInterval(narrativeTick);clearInterval(reportBackfill);clearInterval(tick);active?.terminate();server.close(()=>process.exit())});

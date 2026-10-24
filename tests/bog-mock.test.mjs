@@ -46,7 +46,8 @@ test('actual BOG mock -> PKCE -> common AIS -> reports and independently injecte
  const adminKey='local-only-test-admin-key-at-least-32-bytes',mock=createApp({adminKey}),dir=fs.mkdtempSync(path.join(os.tmpdir(),'bog-geobridge-'));
  await new Promise(r=>mock.server.listen(0,'127.0.0.1',r));
  const mockBase='http://127.0.0.1:'+mock.server.address().port,base='http://127.0.0.1:15378';let app,logs='',cookie,csrf;
- const targets=[{id:'bog',name:'BOG local test',adapter:'bog-mock-v1',origin:mockBase}];
+ fs.writeFileSync(path.join(dir,'mock-admin.key'),adminKey,{mode:0o600});
+ const targets=[{id:'bog',name:'BOG local test',adapter:'bog-mock-v1',origin:mockBase,adminKeyFile:path.join(dir,'mock-admin.key')},{id:'comparison-fixture',name:'Identical mock fixture',adapter:'bog-mock-v1',origin:mockBase,tenant:'bank-tbc'}];
  async function call(route,method='GET',body,headers={}){
   const r=await fetch(base+route,{method,headers:{Origin:base,'Content-Type':'application/json',Cookie:cookie||'','X-CSRF-Token':csrf||'',...headers},...(body?{body:JSON.stringify(body)}:{})});
   const text=await r.text();let data;try{data=JSON.parse(text)}catch{data=text}return {status:r.status,data};
@@ -75,6 +76,22 @@ test('actual BOG mock -> PKCE -> common AIS -> reports and independently injecte
   for(const obs of pack.observations.filter(o=>o.path.startsWith('/oauth/'))){assert.equal(obs.bodyHash,null);assert.deepEqual(obs.body,{redacted:'Authorization material intentionally omitted'});}
   assert.equal(pack.samples.filter(s=>s.kind==='positive'&&s.operation==='transactions').length,9);
   for(const type of ['quality','incompatibility','json','csv'])assert.equal((await call('/api/runs/'+healthy.id+'/export/'+type)).status,200);
+  const qualityQueued=await call('/api/runs','POST',{kind:'bank',connectionId:'mock-bog',qualitySuite:true});assert.equal(qualityQueued.status,201);let qualityRun;
+  for(let i=0;i<300;i++){qualityRun=(await call('/api/runs/'+qualityQueued.data.id)).data;if(['completed','failed'].includes(qualityRun.status))break;await new Promise(r=>setTimeout(r,25))}
+  assert.equal(qualityRun.status,'completed',qualityRun.error);assert.equal(qualityRun.quality.measurement.attempts,30);assert(qualityRun.quality.comparisonKey);assert.equal(qualityRun.results.find(f=>f.id==='DEMO-INVALID-TOKEN').verdict,'PASS');
+  const qualityReport=await call('/api/reports/'+qualityRun.reportId);assert.deepEqual(qualityReport.data.snapshot.quality,qualityRun.quality);
+  assert((await call('/api/reports/'+qualityRun.reportId+'/html')).data.includes('Mock quality suite'));
+  const compareRequest={connectionIds:['mock-bog','mock-comparison-fixture'],requestId:crypto.randomUUID()};
+  const batch=await call('/api/mock-comparisons','POST',compareRequest);assert.equal(batch.status,201,JSON.stringify(batch.data));
+  const duplicate=await call('/api/mock-comparisons','POST',compareRequest);assert.equal(duplicate.status,200);assert.equal(duplicate.data.id,batch.data.id);
+  assert.equal((await call('/api/mock-comparisons','POST',{...compareRequest,policy:{p95Ms:999}})).status,409);
+  let finishedBatch;for(let i=0;i<500;i++){finishedBatch=(await call('/api/mock-comparisons')).data.comparisons.find(b=>b.id===batch.data.id);if(finishedBatch.rows.every(r=>['completed','failed'].includes(r.status)))break;await new Promise(r=>setTimeout(r,25))}
+  assert(finishedBatch.rows.every(r=>r.status==='completed'),JSON.stringify(finishedBatch));assert.equal(finishedBatch.comparable,true);assert(finishedBatch.rows.every(r=>r.quality.measurement.attempts===30&&r.reportId));
+  // Demonstrate a reversible security failure without allowing arbitrary mock administration.
+  assert.equal((await call('/api/mock-demo/bog','POST',{defect:'revokedConsentBypass',enabled:true,durationSeconds:60})).status,200);
+  try{const defectRun=await audit();assert(defectRun.results.some(f=>f.id==='BOG-MOCK-REVOKED'&&f.verdict==='FAIL'))}finally{const restored=await call('/api/mock-demo/bog','POST',{defect:'revokedConsentBypass',enabled:false});assert.equal(restored.data.status,'restored')}
+  const recovered=await audit();assert(recovered.results.some(f=>f.id==='BOG-MOCK-REVOKED'&&f.verdict==='PASS'));
+
   for(const [name,id] of [['missingCurrency','BOG-MOCK-ACCOUNTS'],['numericAmounts','BOG-MOCK-BALANCES-bog-gel-001'],['repeatPagination','BOG-MOCK-PAGINATION-bog-gel-001'],['revokedConsentBypass','BOG-MOCK-REVOKED'],['malformedErrors','BOG-MOCK-ERROR-SHAPE'],['wrongEndpoint','BOG-MOCK-BALANCES-bog-gel-001'],['rateLimited','BOG-MOCK-FLOW'],['slowResponse','BOG-MOCK-FLOW']]){
    await fault(name,true);try{const run=await audit();assert(run.results.some(r=>r.id===id&&r.verdict==='FAIL'),name+' must be detected');if(name==='missingCurrency'){assert(run.results.some(r=>r.id==='BOG-MOCK-UNKNOWN-ACCOUNT'&&r.verdict==='PASS'));assert(run.results.some(r=>r.id==='BOG-MOCK-REVOKED'&&r.verdict==='PASS'));assert(run.results.some(r=>r.id==='BOG-MOCK-BALANCES'&&r.verdict==='BLOCKED'));assert(run.results.some(r=>r.id==='BOG-MOCK-PAGINATION'&&r.verdict==='BLOCKED'))}}finally{await fault(name,false);}
   }
