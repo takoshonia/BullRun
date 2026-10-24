@@ -20,7 +20,7 @@ test('configured targets reject arbitrary URL syntax and duplicate IDs',()=>{
  assert.throws(()=>parseTargets('[{"id":"x","origin":"http://user:pass@localhost"}]'));
  assert.throws(()=>parseTargets('[{"id":"x","origin":"http://localhost/a"}]'));
  assert.throws(()=>parseTargets('[{"id":"x","origin":"http://localhost"},{"id":"x","origin":"http://localhost"}]'));
- assert.equal(parseTargets('[{"id":"gringott","origin":"http://gringott:4173"}]')[0].tenant,'bank-demo');
+ assert.equal(parseTargets('[{"id":"gringott","origin":"http://gringott:4173"}]')[0].tenant,'bank-gringott');
 });
 
 test('monitor survives restart with history; paused and interrupted time is not invented',{timeout:10000},async()=>{

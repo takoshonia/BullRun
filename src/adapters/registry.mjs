@@ -1,3 +1,4 @@
+import {targetTenant} from '../organization-scope.mjs';
 import {MockTransport} from './http-transport.mjs';
 import {GringottAdapter,GRINGOTT_VERSION} from './gringott.mjs';
 import {TbcMockAdapter,TBC_MOCK_VERSION,mapTbcMock} from './tbc-mock.mjs';
@@ -18,7 +19,7 @@ export function adapterTargets(raw=process.env.GEOBRIDGE_MOCK_TARGETS||'[]'){
  const result=targets.filter(t=>implementations.has(t.adapter)||(!t.adapter&&t.id==='gringott')).map(t=>{
   const url=new URL(t.origin);
   if(!/^[a-z0-9-]{1,50}$/.test(t.id)||!['http:','https:'].includes(url.protocol)||url.username||url.password||url.pathname!=='/'||url.search||url.hash)throw Error('Invalid configured Gringott mock origin');
-  return {id:'mock-'+t.id,name:t.name||t.id+' mock',origin:url.origin,tenant:t.tenant||'bank-demo',adapter:t.adapter||GRINGOTT_VERSION};
+  return {id:'mock-'+t.id,name:t.name||t.id+' mock',origin:url.origin,tenant:targetTenant(t),adapter:t.adapter||GRINGOTT_VERSION};
  });
  if(new Set(result.map(t=>t.id)).size!==result.length)throw Error('Duplicate adapter target');
  return result;
@@ -33,7 +34,7 @@ export function createAdapter(connectionId,options={}){
 export function seedAdapterConnections({get,put}){
  for(const target of adapterTargets()){
   const current=get('connections',target.id);
-  if(current&&(current.adapter!==target.adapter||current.tenant!==target.tenant))throw Error('Configured mock connection conflicts with an existing record');
+  if(current&&(current.adapter!==target.adapter||current.tenant!==target.tenant&&current.tenant!=='bank-demo'))throw Error('Configured mock connection conflicts with an existing record');
   put('connections',{...current,id:target.id,name:target.name,tenant:target.tenant,adapter:target.adapter,profile:'xs2a-0.8',environment:'synthetic_mock',synthetic:true,status:'mock_configured',baseUrl:target.origin,capabilities:{accounts:'mock_supported',balances:'mock_supported',transactions:'mock_supported'},createdAt:current?.createdAt||new Date().toISOString()});
  }
 }

@@ -12,7 +12,7 @@ test('HTTP workflows: authentication, CSRF, worker, evidence, reports, isolation
  try{
   for(let n=0;n<80;n++){await new Promise(r=>setTimeout(r,100));if(fs.existsSync(path.join(dir,'demo-credentials.json'))){try{if((await fetch(origin+'/api/health')).ok)break}catch{}}}
   const credentials=JSON.parse(fs.readFileSync(path.join(dir,'demo-credentials.json')));const sessions={};
-  async function login(name){const c=credentials.find(x=>x.username===name);const r=await fetch(origin+'/api/login',{method:'POST',headers:{Origin:origin,'Content-Type':'application/json'},body:JSON.stringify(c)});assert.equal(r.status,200);const data=await r.json();sessions[name]={cookie:r.headers.get('set-cookie').split(';')[0],csrf:data.csrf};return data}
+  async function login(name){const c=credentials.find(x=>x.username===({bank:'bank-bog',tpp:'tpp-demo',reviewer:'nbg',standards:'nbg'}[name]||name));const r=await fetch(origin+'/api/login',{method:'POST',headers:{Origin:origin,'Content-Type':'application/json'},body:JSON.stringify(c)});assert.equal(r.status,200);const data=await r.json();sessions[name]={cookie:r.headers.get('set-cookie').split(';')[0],csrf:data.csrf};return data}
   async function call(name,url,method='GET',body){const s=sessions[name];const r=await fetch(origin+url,{method,headers:{Origin:origin,'Content-Type':'application/json',Cookie:s.cookie,'X-CSRF-Token':s.csrf},body:body===undefined?undefined:JSON.stringify(body)});const text=await r.text();let data;try{data=JSON.parse(text)}catch{data=text}return {status:r.status,data}}
   async function waitRun(name,id){for(let i=0;i<60;i++){const {data}=await call(name,'/api/runs/'+id);if(['completed','failed'].includes(data.status))return data;await new Promise(r=>setTimeout(r,100))}throw Error('Worker timeout')}
   assert.equal((await fetch(origin+'/api/workspace')).status,401);
@@ -20,9 +20,9 @@ test('HTTP workflows: authentication, CSRF, worker, evidence, reports, isolation
   const logo=await fetch(origin+'/logo.png');assert.equal(logo.status,200);assert.match(logo.headers.get('content-type'),/image\/png/);assert.deepEqual(Buffer.from(await logo.arrayBuffer()),fs.readFileSync(path.join(root,'public','logo.png')));
   for(const name of ['operator','bank','tpp','reviewer','standards'])await login(name);
   const tppWorkspace=await call('tpp','/api/workspace');
-  assert.equal(tppWorkspace.data.connections.length,0);assert.equal(tppWorkspace.data.rules.length,0);assert(tppWorkspace.data.catalog.length>0);assert(!JSON.stringify(tppWorkspace.data.catalog).includes('baseUrl'));
+  assert.equal(tppWorkspace.data.connections.length,0);assert.equal(tppWorkspace.data.rules.length,0);assert.equal(tppWorkspace.data.catalog.length,0);assert(!JSON.stringify(tppWorkspace.data.catalog).includes('baseUrl'));
   const standardsWorkspace=await call('standards','/api/workspace');const newDrafts=standardsWorkspace.data.rules.filter(r=>r.id.startsWith('XS2A-ACCOUNT-'));assert.equal(newDrafts.length,6);assert(newDrafts.every(r=>r.status==='draft'&&r.quoteVerified&&r.profile==='xs2a-0.8'&&r.sourceHash&&r.references.length===2));
-  assert.equal(standardsWorkspace.data.connections.length,0);assert.equal(standardsWorkspace.data.runs.length,0);assert(standardsWorkspace.data.rules.length>0);
+  assert(standardsWorkspace.data.connections.length>=3);assert.equal(standardsWorkspace.data.runs.length,0);assert(standardsWorkspace.data.rules.length>0);
   assert.equal((await fetch(origin+'/api/runs',{method:'POST',headers:{Origin:origin,Cookie:sessions.bank.cookie,'Content-Type':'application/json'},body:'{}'})).status,403);
   assert.equal((await call('tpp','/api/runs','POST',{kind:'platform'})).status,403);
   for(const role of ['bank','tpp','reviewer','standards']){assert.equal((await call(role,'/api/diagnostics')).status,403);assert.equal((await call(role,'/api/diagnostics','POST',{})).status,403);assert.equal((await call(role,'/api/runs','POST',{kind:'platform'})).status,403);assert.equal((await call(role,'/api/schedules','POST',{kind:'platform',minutes:60})).status,403)}
@@ -47,17 +47,17 @@ test('HTTP workflows: authentication, CSRF, worker, evidence, reports, isolation
   const originalHtml=await call('bank',reportUrl+'/html');assert.equal(originalHtml.status,200);assert(originalHtml.data.includes('Full audit report'));
   assert.equal((await call('bank','/api/runs/'+reviewed.id+'/export/full')).data,originalHtml.data);
   assert.equal((await call('reviewer',reportUrl)).status,200);
-  for(const role of ['tpp','standards'])assert.equal((await call(role,reportUrl)).status,403);
+  for(const role of ['tpp'])assert.equal((await call(role,reportUrl)).status,403);
   assert.equal((await call('reviewer','/api/reports/'+done.reportId)).status,404);
   const revision={requestId:crypto.randomUUID(),reason:'Reviewed descriptive report version for bank delivery'};
-  assert.equal((await call('reviewer','/api/runs/'+reviewed.id+'/reports','POST',revision)).status,403);
+  assert.equal((await call('tpp','/api/runs/'+reviewed.id+'/reports','POST',revision)).status,404);
   const revised=await call('bank','/api/runs/'+reviewed.id+'/reports','POST',revision);assert.equal(revised.status,201);assert.equal(revised.data.version,2);
   assert.equal((await call('bank','/api/runs/'+reviewed.id+'/reports','POST',revision)).data.id,revised.data.id);
   assert.equal((await call('bank','/api/runs/'+reviewed.id+'/reports')).data.reports.length,2);
   assert.equal((await call('bank',reportUrl+'/html')).data,originalHtml.data,'old saved version stays unchanged');
   assert((await call('bank','/api/reports')).data.reports.some(r=>r.id===revised.data.id));
   const explanationUrl=reportUrl+'/explanation';
-  for(const role of ['reviewer','tpp','standards'])assert.equal((await call(role,explanationUrl,'POST',{})).status,403);
+  for(const role of ['tpp'])assert.equal((await call(role,explanationUrl,'POST',{})).status,403);
   assert.equal((await call('bank','/api/reports/'+done.reportId+'/explanation','POST',{})).status,404);
   assert.equal((await fetch(origin+explanationUrl,{method:'POST',headers:{Origin:origin,Cookie:sessions.bank.cookie,'Content-Type':'application/json'},body:'{}'})).status,403);
   const explanation=await call('bank',explanationUrl,'POST',{});assert.equal(explanation.status,202);

@@ -18,11 +18,26 @@ export const remove=(kind,key)=>db.prepare('DELETE FROM records WHERE kind=? AND
 export const event=(actor,action,target,detail={})=>db.prepare('INSERT INTO events(at,actor,action,target,detail) VALUES(?,?,?,?,?)').run(new Date().toISOString(),actor,action,target,JSON.stringify(detail));
 export function seed(){
  if(all('users').length)return;
- const roles=[['operator','Platform operator','platform'],['bank','Bank engineer','bank-demo'],['tpp','TPP developer','tpp-demo'],['reviewer','Oversight reviewer','oversight'],['standards','Standards reviewer','standards']];
- const credentials=[];
- for(const [role,name,tenant]of roles){const password=id().replaceAll('-','').slice(0,18);put('users',{id:role,name,role,tenant,password:passwordHash(password)});credentials.push({username:role,password,role:name})}
- fs.writeFileSync(path.join(dataDir,'demo-credentials.json'),JSON.stringify(credentials,null,2),{mode:0o600});
- put('connections',{id:'bank-connection-a',name:'Sandbox connection A',tenant:'bank-demo',status:'not_connected',environment:'pending',profile:'xs2a-0.8',capabilities:{accounts:'unknown',balances:'unknown',transactions:'unknown'},baseUrl:'',specHash:null,adapter:null,createdAt:new Date().toISOString()});
- put('connections',{id:'bank-connection-b',name:'Sandbox connection B',tenant:'bank-demo',status:'not_connected',environment:'pending',profile:'xs2a-0.8',capabilities:{accounts:'unknown',balances:'unknown',transactions:'unknown'},baseUrl:'',specHash:null,adapter:null,createdAt:new Date().toISOString()});
+ const password=id().replaceAll('-','').slice(0,18);
+ put('users',{id:'operator',name:'Platform operator',role:'operator',tenant:'platform',password:passwordHash(password)});
+ fs.writeFileSync(path.join(dataDir,'demo-credentials.json'),JSON.stringify([{username:'operator',password,role:'Platform operator'}],null,2),{mode:0o600});
  event('system','workspace_initialized','platform',{syntheticOnly:true});
+}
+
+// Add scoped demo identities without rotating Operator or guessing ownership of historical evidence.
+export function provisionDemoAccounts(){
+ const filename=path.join(dataDir,'demo-credentials.json');
+ const credentials=fs.existsSync(filename)?JSON.parse(fs.readFileSync(filename,'utf8')):[];
+ const accounts=[['bank-bog','BOG bank engineer','bank','bank-bog'],['bank-tbc','TBC bank engineer','bank','bank-tbc'],['bank-gringott','Gringott demo bank engineer','bank','bank-gringott'],['nbg','NBG Reviewer (demo)','reviewer','nbg'],['tpp-demo','TPP developer (demo)','tpp','tpp-demo']];
+ db.exec('BEGIN IMMEDIATE');
+ try{
+  for(const username of ['bank','reviewer','standards','tpp']){const old=get('users',username);if(old&&!old.disabled){put('users',{...old,disabled:true});db.prepare('DELETE FROM sessions WHERE user_id=?').run(username)}}
+  for(const schedule of all('schedules'))if(get('users',schedule.owner)?.disabled&&schedule.enabled)put('schedules',{...schedule,enabled:false,lastError:'Legacy shared account retired; recreate this schedule with an organization account.'});
+  for(const [username,name,role,tenant] of accounts){
+   if(!get('users',username)){const password=id().replaceAll('-','');put('users',{id:username,name,role,tenant,password:passwordHash(password)});credentials.push({username,password,role:name,tenant})}
+   if(role==='bank'&&!get('connections',tenant+'-sandbox'))put('connections',{id:tenant+'-sandbox',name:name.replace(' bank engineer','')+' sandbox',bankName:tenant.slice(5).toUpperCase(),tenant,status:'not_connected',environment:'pending',profile:'xs2a-0.8',capabilities:{accounts:'unknown',balances:'unknown',transactions:'unknown'},baseUrl:'',specHash:null,adapter:null,createdAt:new Date().toISOString()});
+  }
+  fs.writeFileSync(filename,JSON.stringify(credentials.filter(c=>!get('users',c.username)?.disabled),null,2),{mode:0o600});
+  db.exec('COMMIT');
+ }catch(e){db.exec('ROLLBACK');throw e}
 }

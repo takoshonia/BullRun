@@ -21,7 +21,7 @@ test('actual Gringott -> consent/common AIS -> captured audit/reports -> injecte
  const sleep=ms=>new Promise(r=>setTimeout(r,ms));
  const sessions={};
  async function ready(){for(let i=0;i<100;i++){try{if((await fetch(base+'/api/health')).ok&&(await fetch(mockBase+'/api/health')).ok)return;}catch{}await sleep(100);}throw Error('Startup failed '+logs);}
- async function login(user){const credentials=JSON.parse(fs.readFileSync(path.join(dir,'demo-credentials.json'))).find(x=>x.username===user);const r=await fetch(base+'/api/login',{method:'POST',headers:{Origin:base,'Content-Type':'application/json'},body:JSON.stringify(credentials)});assert.equal(r.status,200);sessions[user]={cookie:r.headers.get('set-cookie').split(';')[0],csrf:(await r.json()).csrf};}
+ async function login(user){const credentials=JSON.parse(fs.readFileSync(path.join(dir,'demo-credentials.json'))).find(x=>x.username===({bank:'bank-gringott',tpp:'tpp-demo',reviewer:'nbg',standards:'nbg'}[user]||user));const r=await fetch(base+'/api/login',{method:'POST',headers:{Origin:base,'Content-Type':'application/json'},body:JSON.stringify(credentials)});assert.equal(r.status,200);sessions[user]={cookie:r.headers.get('set-cookie').split(';')[0],csrf:(await r.json()).csrf};}
  async function call(user,url,method='GET',body,headers={}){const s=sessions[user];const r=await fetch(base+url,{method,headers:{Origin:base,'Content-Type':'application/json',Cookie:s.cookie,'X-CSRF-Token':s.csrf,...headers},...(body?{body:JSON.stringify(body)}:{})});const text=await r.text();let data;try{data=JSON.parse(text)}catch{data=text}return {status:r.status,data};}
  async function faults(body){const r=await fetch(mockBase+'/api/admin/defects',{method:'POST',headers:{'Content-Type':'application/json','X-Gringott-Admin-Key':adminKey},body:JSON.stringify(body)});assert(r.ok);}
  async function audit(){const r=await call('bank','/api/runs','POST',{kind:'bank',connectionId:'mock-gringott'});assert.equal(r.status,201);for(let i=0;i<300;i++){const run=(await call('bank','/api/runs/'+r.data.id)).data;if(['completed','failed'].includes(run.status)){assert.equal(run.status,'completed',run.error);return run;}await sleep(50);}throw Error('Audit timed out '+logs);}
@@ -36,6 +36,9 @@ test('actual Gringott -> consent/common AIS -> captured audit/reports -> injecte
   assert.equal((await call('bank',bridge+'/accounts','GET',undefined,h)).status,403,'role restriction');
   assert.equal((await call('tpp',bridge+'/accounts/other/balances','GET',undefined,h)).status,403,'account scope');
   assert.equal((await call('tpp',bridge+'/accounts','GET',undefined,h)).status,200);
+  assert((await call('tpp','/api/events')).data.some(e=>e.action==='common_api_request'));
+  assert(!(await call('reviewer','/api/events')).data.some(e=>e.action==='common_api_request'));
+  assert(!(await call('bank','/api/events')).data.some(e=>e.action==='common_api_request'));
   const tx=await call('tpp',bridge+'/accounts/acc_1001/transactions','GET',undefined,h);assert.equal(tx.status,200);assert.equal(tx.data.data.transactions.length,4);assert(tx.data.data.transactions.every(t=>t.status==='booked'));
   assert.equal((await call('tpp',bridge+'/consents/'+cid,'DELETE')).status,200);
   assert.equal((await call('tpp',bridge+'/accounts','GET',undefined,h)).status,403);
@@ -46,7 +49,7 @@ test('actual Gringott -> consent/common AIS -> captured audit/reports -> injecte
   assert(!JSON.stringify(pack).includes('access_'));assert(!JSON.stringify(pack).includes('code_'));assert(pack.observations.some(o=>o.kind==='negative'));
   assert.equal((await call('reviewer','/api/packs/'+healthy.packId)).status,403);
   for(const type of ['quality','incompatibility','json','csv']){const report=await call('bank','/api/runs/'+healthy.id+'/export/'+type);assert.equal(report.status,200);assert(!JSON.stringify(report.data).includes('access_'));}
-  assert.equal((await call('bank','/api/gates','POST',{runId:healthy.id,name:'mock gate'})).data.decision,'HOLD');
+  assert.equal((await call('reviewer','/api/gates','POST',{runId:healthy.id,name:'mock gate'})).data.decision,'HOLD');
   assert.equal((await call('standards','/api/rules/XS2A-JSON/review','POST',{approve:true,confirm:true,note:'Test-only review of JSON on the explicitly selected legacy payment-account interface.'})).status,200);
   const approved=await audit();assert(approved.results.some(f=>f.ruleId==='XS2A-JSON'&&f.verdict==='PASS'&&f.sourceHash&&f.section));
   await faults({repeatPagination:true});const pagination=await audit();assert(pagination.results.some(r=>r.id==='GRINGOTT-PAGINATION-acc_1001'&&r.verdict==='FAIL'));
