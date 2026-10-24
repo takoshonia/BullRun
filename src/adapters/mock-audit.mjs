@@ -1,3 +1,4 @@
+import {mockSource} from '../check-sources.mjs';
 import {createAdapter} from './registry.mjs';
 
 import {requireResponse} from './http-transport.mjs';
@@ -13,9 +14,9 @@ export async function captureMock(connection,{adapterFactory=createAdapter,timeo
   'bog-mock-v1':{tag:'BOG-MOCK',label:'BOG-style independent mock',base:'/v1',errorShape:'messages',linked:false}
  };
  const {tag,label,base,errorShape,linked}=contracts[adapter.version];
- let consent,revoked=false,specHash=null;
+ let consent,revoked=false,specHash=null,specification=null;
  function finding(key,title,ok,expected,observed,layer='compatibility'){
-  results.push({id:tag+'-'+key,title,layer,basis:'mock_contract',verdict:ok?'PASS':'FAIL',severity:ok?'info':'high',expected,observed,fix:ok?'Preserve this behavior.':'Inspect the original synthetic observation and correct the adapter or mock behavior.',observationIndex:observations.length?observations.length-1:undefined});
+  results.push({...mockSource(adapter.version,key,specification),id:tag+'-'+key,title,layer,basis:'mock_contract',verdict:ok?'PASS':'FAIL',severity:ok?'info':'high',expected,observed,fix:ok?'Preserve this behavior.':'Inspect the original synthetic observation and correct the adapter or mock behavior.',observationIndex:observations.length?observations.length-1:undefined});
  }
  const checks=[
   ['AUTH','Unauthenticated AIS request returns expected denial status','401 or 403 without a bearer token','security'],
@@ -29,13 +30,13 @@ export async function captureMock(connection,{adapterFactory=createAdapter,timeo
  ];
  const message=e=>redact(signal.aborted?'Audit deadline exceeded':String(e.message||'Request could not complete'));
  function blocked(key,title,expected,reason,dependency,layer='compatibility'){
-  results.push({id:tag+'-'+key,title,layer,basis:'mock_contract',verdict:'BLOCKED',severity:'info',expected,observed:'Blocked by '+dependency+': '+reason,fix:'Resolve the prerequisite and rerun this check. No independent defect is established.',blockedBy:dependency});
+  results.push({...mockSource(adapter.version,key,specification),id:tag+'-'+key,title,layer,basis:'mock_contract',verdict:'BLOCKED',severity:'info',expected,observed:'Blocked by '+dependency+': '+reason,fix:'Resolve the prerequisite and rerun this check. No independent defect is established.',blockedBy:dependency});
  }
  function blockFamily(key,reason,dependency){const c=checks.find(c=>c[0]===key);blocked(...c.slice(0,3),reason,dependency,c[3])}
  function missing(reason,dependency){for(const [key] of checks){if(!results.some(r=>r.id===tag+'-'+key||(['BALANCES','PAGINATION'].includes(key)&&r.id.startsWith(tag+'-'+key+'-'))))blockFamily(key,reason,dependency)}}
  let stage='contract',validConsent=false,unavailableReason='Required setup was not completed';
  try{
-  const specification=requireResponse(await adapter.transport.request('/openapi.json',{maxResponseBytes:2_000_000}));
+  specification=requireResponse(await adapter.transport.request('/openapi.json',{maxResponseBytes:2_000_000}));
   if(!/^3\./.test(specification.openapi||'')||!specification.paths)throw Error('Unexpected mock OpenAPI contract');
   specHash=sha(specification);stage='authorization';
   consent=await adapter.createConsent();consent=await adapter.completeAuthorization(consent);
@@ -78,7 +79,7 @@ export async function captureMock(connection,{adapterFactory=createAdapter,timeo
  }catch(e){
   unavailableReason=message(e);finding('FLOW',label+' AIS workflow setup completed',false,'Complete '+stage+' with a pinned contract and authorized synthetic session',unavailableReason);missing(unavailableReason,tag+'-FLOW');
  }finally{
-  if(consent&&!revoked){try{await adapter.revokeConsent(consent)}catch{results.push({id:tag+'-CLEANUP',title:'Synthetic consent cleanup not confirmed',basis:'mock_contract',layer:'security',verdict:'NOT_ASSESSED',expected:'Revoke created consent',observed:'Cleanup request could not complete; mock expiry or reset is required.'})}}
+  if(consent&&!revoked){try{await adapter.revokeConsent(consent)}catch{results.push({...mockSource(adapter.version,'CLEANUP',specification),id:tag+'-CLEANUP',title:'Synthetic consent cleanup not confirmed',basis:'mock_contract',layer:'security',verdict:'NOT_ASSESSED',expected:'Revoke created consent',observed:'Cleanup request could not complete; mock expiry or reset is required.'})}}
  }
 
  const samples=observations.map(o=>({operation:o.operation,kind:o.kind,timestamp:o.timestamp,durationMs:o.durationMs,outcome:o.transportError==='TIMEOUT'?'timeout':o.status===429?'rate_limited':!o.transportError&&o.status>=200&&o.status<300?'success':'error'}));
