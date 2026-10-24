@@ -14,7 +14,7 @@ export function parseTargets(raw='[]') {
   seen.add(t.id);
   const adminKey=t.adminKeyFile?fs.readFileSync(t.adminKeyFile,'utf8').trim():'';
   if(adminKey&&Buffer.byteLength(adminKey)<32)throw Error('Mock admin key must be 32+ bytes');
-  return {id:t.id,name:String(t.name||t.id).slice(0,100),tenant:t.tenant||'bank-demo',origin:url.origin,adminKey};
+  return {id:t.id,name:String(t.name||t.id).slice(0,100),tenant:t.tenant||'bank-demo',origin:url.origin,adminKey,adminHeader:t.adapter==='bog-mock-v1'?'X-BOG-Mock-Admin-Key':'X-Gringott-Admin-Key'};
  });
 }
 
@@ -85,7 +85,7 @@ export function createAvailability({db,targets,clock=Date.now,request=requestJSO
  function configure(id,b){target(id);if(typeof b.enabled!=='boolean'||!Number.isInteger(b.intervalSeconds)||b.intervalSeconds<5||b.intervalSeconds>3600||!Number.isInteger(b.timeoutSeconds)||b.timeoutSeconds<1||b.timeoutSeconds>10||b.timeoutSeconds>=b.intervalSeconds)throw Error('Use interval 5–3600s and deadline 1–10s shorter than interval');
   db.prepare('UPDATE availability_monitors SET enabled=?,interval_ms=?,timeout_ms=? WHERE id=?').run(+b.enabled,b.intervalSeconds*1000,b.timeoutSeconds*1000,id);epochs.set(id,crypto.randomUUID());due.set(id,0);return report(id);
  }
- async function switchMock(id,online){const t=target(id);if(typeof online!=='boolean')throw Error('online must be boolean');if(!t.adminKey)throw Error('No private mock administration key configured');const r=await request(t.origin+'/api/admin/availability',{method:'POST',body:{online},headers:{'X-Gringott-Admin-Key':t.adminKey},timeoutMs:2000});if(r.httpStatus!==200||r.data?.availability?.online!==online)throw Error('Mock switch failed');return {online,synthetic:true};}
+ async function switchMock(id,online){const t=target(id);if(typeof online!=='boolean')throw Error('online must be boolean');if(!t.adminKey)throw Error('No private mock administration key configured');const r=await request(t.origin+'/api/admin/availability',{method:'POST',body:{online,mode:'no_response'},headers:{[t.adminHeader||'X-Gringott-Admin-Key']:t.adminKey},timeoutMs:2000});if(r.httpStatus!==200||r.data?.availability?.online!==online)throw Error('Mock switch failed');return {online,synthetic:true};}
  async function tick(){for(const t of targets){if(stopped)break;if(config(t.id).enabled&&(due.get(t.id)||0)<=clock())await probe(t.id);}}
  return {targets:()=>targets.map(({id,name,tenant,adminKey})=>({id,name,tenant,canSwitch:!!adminKey,synthetic:true})),report,configure,probe,switchMock,start(){timer=setInterval(()=>tick().catch(e=>console.error('Availability monitor:',e.message)),500);timer.unref();},stop(){stopped=true;clearInterval(timer);}};
 }

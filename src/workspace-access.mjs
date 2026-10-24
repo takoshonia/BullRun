@@ -21,6 +21,6 @@ export function workspacePayload(user,{records,profiles,sources,aiConfigured,can
   gates:manager?own('gates'):[],
   updates:standards?records('updates'):user.role==='bank'?records('updates').filter(x=>x.status==='approved'):[],
   ai:{configured:aiConfigured},
-  capabilities:{bankRuntime:false,mockRuntime:records('connections').some(c=>['gringott-mock-v1','tbc-mock-v1'].includes(c.adapter)),reason:'Only explicitly configured synthetic adapters can execute; real bank authorization is pending'}
+  capabilities:{bankRuntime:false,mockRuntime:records('connections').some(c=>['gringott-mock-v1','tbc-mock-v1','bog-mock-v1'].includes(c.adapter)),reason:'Only explicitly configured synthetic adapters can execute; real bank authorization is pending'}
  };
 }

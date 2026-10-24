@@ -24,4 +24,6 @@ test('all workspace views render without template exceptions; unsafe names are e
  ui.render();assert(element('#app').innerHTML.includes('All transaction pages'));assert(!element('#app').innerHTML.includes('<script>bad'));
  ui.state.workspace.catalog.push({id:'mock-tbc',name:'TBC independent mock',status:'mock_configured',capabilities:{accounts:'mock_supported'}});
  ui.state.gringott=null;ui.render();assert(element('#app').innerHTML.includes('TBC independent mock'));assert(element('#app').innerHTML.includes('value="mock-tbc"'));
+ ui.state.workspace.catalog.push({id:'mock-bog',name:'BOG independent mock',status:'mock_configured',capabilities:{accounts:'mock_supported'}});
+ ui.render();assert(element('#app').innerHTML.includes('value="mock-bog"'));
 });

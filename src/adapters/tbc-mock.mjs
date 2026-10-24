@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import {BankAdapter} from '../contracts.mjs';
 import {normalize} from '../security.mjs';
 import {requireResponse} from './http-transport.mjs';
+import {collectLinkedTransactions} from './linked-pagination.mjs';
 
 export const TBC_MOCK_VERSION='tbc-mock-v1';
 const prefix='/0.8/v1';
@@ -38,25 +39,7 @@ export class TbcMockAdapter extends BankAdapter {
  async revokeConsent(consent){requireResponse(await this.transport.request(prefix+'/consents/'+encodeURIComponent(consent.upstreamId),{method:'DELETE'}),204);}
  listAccounts(consent,kind='positive'){return this.transport.request(prefix+'/accounts?withBalance=true',{token:consent.token,consentId:consent.upstreamId,operation:'accounts',kind});}
  getBalances(consent,account){return this.transport.request(prefix+'/accounts/'+encodeURIComponent(identifier(account))+'/balances',{token:consent.token,consentId:consent.upstreamId,operation:'balances',kind:'positive'});}
- async listTransactions(consent,account){
-  const path=prefix+'/accounts/'+encodeURIComponent(identifier(account))+'/transactions';
-  let next=path;const visited=new Set(),ids=new Set(),booked=[],pending=[];
-  for(let page=0;page<20;page++){
-   if(visited.has(next))throw Error('Repeated transaction page');visited.add(next);
-   const body=requireResponse(await this.transport.request(next,{token:consent.token,consentId:consent.upstreamId,operation:'transactions',kind:'positive'}));
-   const mapped=this.map('transactions',body);
-   for(const t of mapped.transactions){if(ids.has(t.transactionId))throw Error('Repeated transaction across pages');ids.add(t.transactionId);}
-   if(ids.size>1000)throw Error('Transaction budget exceeded');
-   booked.push(...(body.transactions.booked??[]));pending.push(...(body.transactions.pending??[]));
-   const nextLink=body.transactions._links?.next??body._links?.next;
-   if(nextLink!==undefined&&nextLink!==null&&(typeof nextLink!=='object'||typeof nextLink.href!=='string'))throw Error('Invalid next-page link');
-   const link=nextLink?.href;
-   if(link===undefined||link===null)return {data:this.map('transactions',{transactions:{booked,pending}}),pages:page+1};
-   if(typeof link!=='string'||!link)throw Error('Invalid next-page link');
-   const url=new URL(link,this.transport.origin+next);
-   if(url.origin!==this.transport.origin||url.pathname!==path||url.username||url.password||url.hash)throw Error('Transaction next link left its account scope');
-   next=url.pathname+url.search;
-  }
-  throw Error('Transaction page limit exceeded');
+ listTransactions(consent,account){
+  return collectLinkedTransactions({transport:this.transport,consent,path:prefix+'/accounts/'+encodeURIComponent(identifier(account))+'/transactions',map:mapTbcMock});
  }
 }

@@ -10,7 +10,8 @@ export class MockTransport {
   this.origin=new URL(origin).origin;this.timeoutMs=timeoutMs;this.signal=signal;
   this.onObservation=onObservation;this.remaining=maxRequests;
  }
- async request(path,{method='GET',body,token,consentId,operation='consent',kind='setup',sensitive=false,maxResponseBytes=1_000_000}={}){
+ async request(path,{method='GET',body,token,consentId,operation='consent',kind='setup',sensitive=false,maxResponseBytes=1_000_000,responseType='json'}={}){
+  if(!['json','text'].includes(responseType)||responseType==='text'&&!sensitive)throw Error('Text responses require sensitive capture suppression');
   if(!Number.isInteger(maxResponseBytes)||maxResponseBytes<1||maxResponseBytes>2_000_000)throw Error('Invalid response size budget');
   if(this.signal?.aborted)throw this.signal.reason;
   if(--this.remaining<0)throw Error('Mock request budget exhausted');
@@ -24,7 +25,7 @@ export class MockTransport {
     const chunks=[];let bytes=0;
     const headers={'content-type':res.headers['content-type']||'','x-request-id':res.headers['x-request-id']||''};
     res.on('data',chunk=>{if(settled)return;bytes+=chunk.length;if(bytes>maxResponseBytes){finish({status:res.statusCode,headers,transportError:'RESPONSE_TOO_LARGE'});res.destroy();req.destroy();}else chunks.push(chunk);});
-    res.on('end',()=>{const raw=Buffer.concat(chunks);let data;try{data=JSON.parse(raw.toString('utf8'))}catch{}
+    res.on('end',()=>{const raw=Buffer.concat(chunks);let data;try{data=responseType==='text'?raw.toString('utf8'):JSON.parse(raw.toString('utf8'))}catch{}
      finish({status:res.statusCode,headers,body:data,bodyHash:crypto.createHash('sha256').update(raw).digest('hex'),location:res.headers.location,transportError:data===undefined&&res.statusCode!==204&&res.statusCode!==302?'INVALID_JSON':undefined});
     });
     res.on('error',()=>finish({status:0,headers,transportError:'RESPONSE_INTERRUPTED'}));
