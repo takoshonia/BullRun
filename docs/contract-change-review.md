@@ -4,7 +4,7 @@
 
 Configured synthetic adapters only. No external mock service is modified. Production deployment is not part of this change.
 
-`API contract changes` is visible to Operator and NBG. Bank engineers and TPPs cannot read its schemas, proposal records or controls. TPPs use `TPP explorer` and owner-scoped simulated consents.
+`API changes & adapter review` is visible to Operator and NBG. Bank engineers and TPPs cannot read its schemas, proposal records or controls. TPPs use `TPP explorer` and owner-scoped simulated consents.
 
 - Every 24 hours by default while GeoBridge is running, configured `/openapi.json` documents are fetched with fixed-origin, bounded transports. Operator/NBG can also scan manually.
 - Canonical content hashes identify immutable schema snapshots. Fetch status is separate; an outage or invalid document does not become a contract change. Repeated identical transitions are deduplicated.
@@ -26,12 +26,12 @@ No test proves semantic equivalence: the controlled demo is reviewable because i
 
 Use the local preview with BOG and Gringott configured. Credentials remain in the existing private demo credentials file; do not record passwords.
 
-1. **Operator / API contract changes:** Scan both banks. These initial snapshots must be collected with the synthetic overlay disabled.
-2. **NBG / API contract changes:** Expand Saved schema versions, inspect each original JSON snapshot, and approve each baseline with a source/applicability review note.
+1. **Operator / API changes & adapter review:** Scan both banks. These initial snapshots must be collected with the synthetic overlay disabled.
+2. **NBG / API changes & adapter review:** Expand Saved schema versions, inspect each original JSON snapshot, and approve each baseline with a source/applicability review note.
 3. **TPP / TPP explorer:** Select BOG and Gringott, grant selected mock consents, then Request selected balances. Both should succeed. Consents are ephemeral and must be granted again after a server restart.
-4. **Operator / API contract changes:** Enable BOG's synthetic field change, then Scan OpenAPI. Expand the schema change: original `amount` becomes `sum`. This is a labelled GeoBridge in-memory overlay, not an actual bank change.
+4. **Operator / API changes & adapter review:** Enable BOG's synthetic field change, then Scan OpenAPI. Expand the schema change: original `amount` becomes `sum`. This is a labelled GeoBridge in-memory overlay, not an actual bank change.
 5. **TPP / TPP explorer:** Request balances again with the same consents. BOG returns a contract error; Gringott remains successful.
-6. **Operator / API contract changes:** Propose exact sum-to-amount mapping, then Test against mock. Inspect original/mapped fields and test results. Optionally Ask AI for a candidate; absence of configured AI is reported explicitly, never simulated as AI success.
+6. **Operator / API changes & adapter review:** Propose exact sum-to-amount mapping, then Test against mock. Inspect original/mapped fields and test results. Optionally Ask AI for a candidate; absence of configured AI is reported explicitly, never simulated as AI success.
 7. **NBG:** Review the candidate's meaning and evidence, then Approve meaning. A suitable demo note is: "Controlled overlay copies the original amount exactly; currency, account scope and semantic meaning are unchanged."
 8. **Operator:** Activate approved version. **TPP:** Request selected balances. Both succeed; original `sum`, common `amount`, unchanged decimal strings, mapping version and overlay label are shown together.
 9. **Operator:** Rollback to built-in adapter. **TPP:** BOG fails closed again while Gringott succeeds. Disable the synthetic overlay and scan BOG to restore the original demo environment. Revoke batch consents when finished.
@@ -58,3 +58,5 @@ Schema changes and response mismatches write deduplicated `contract_notification
 `GEOBRIDGE_CONTRACT_SCAN_MINUTES=1440` is the default (range 5-10080 minutes). A lightweight minute timer checks persisted per-bank last-attempt timestamps; it only fetches OpenAPI when due. Manual scans update the same timestamp. Restarting does not reset the daily schedule. Failed fetches retain status and are retried on the configured interval, without becoming schema changes.
 
 Availability monitoring remains independent. Existing-request structural validation performs no additional bank fetch. The internal scheduler `notify(connectionId)` can trigger an immediate, coalesced scan after a future bank-specific integration verifies a webhook signature, freshness and bank identity. No public webhook endpoint or connected bank feed is provided or claimed in this version.
+
+Bank cards show mapping proposal actions only when current schema changes or fresh response-mismatch evidence identify a supported amount alias. Historical changes alone do not enable these actions. Rollback appears only for an active custom mapping. An unchanged bank uses a compact default-adapter status.

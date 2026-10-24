@@ -70,7 +70,7 @@ export function createContractReview({all,get,put,event,router,getAIConfig=aiCon
  function overlay(cid,op,body){const control=get('contract_demo',cid);if(!control?.enabled||op!=='balances')return body;const copy=structuredClone(body);for(const b of copy.balances||[]){if(b.balanceAmount&&Object.hasOwn(b.balanceAmount,'amount')){b.balanceAmount.sum=b.balanceAmount.amount;delete b.balanceAmount.amount}}return copy}
  function overlayDoc(cid,doc){if(!get('contract_demo',cid)?.enabled)return doc;const clone=structuredClone(doc);function walk(v){if(!v||typeof v!=='object')return;if(v.properties?.amount&&v.properties?.currency){v.properties.sum=v.properties.amount;delete v.properties.amount;if(v.required)v.required=v.required.map(k=>k==='amount'?'sum':k)}for(const x of Object.values(v))walk(x)}walk(clone);return clone}
  function active(cid){const pointer=get('contract_active',cid);return pointer?get('contract_candidates',pointer.candidateId):null}
- function mismatch(cid,operation,snapshot,errors){const key=contractHash({cid,operation,snapshot,errors});if(!get('contract_mismatches',key)){put('contract_mismatches',{id:key,connectionId:cid,operation,snapshotId:snapshot,errors,classification:'confirmed_response_mismatch',createdAt:now()});emit('contract_response_mismatch',key,{connectionId:cid,operation})}}
+ function mismatch(cid,operation,snapshot,errors,body){const key=contractHash({cid,operation,snapshot,errors});if(!get('contract_mismatches',key)){put('contract_mismatches',{id:key,connectionId:cid,operation,snapshotId:snapshot,errors,sourceFields:[...new Set(proof(body).flatMap(b=>Object.keys(b.fields)))],classification:'confirmed_response_mismatch',createdAt:now()});emit('contract_response_mismatch',key,{connectionId:cid,operation})}}
  async function scan(cid,actor='system'){
   requireTarget(cid);if(busy.has(cid))fail('Scan already running');busy.add(cid);
   try{
@@ -82,7 +82,7 @@ export function createContractReview({all,get,put,event,router,getAIConfig=aiCon
  }
  function evaluateResponse(cid,operation,raw){
   const body=overlay(cid,operation,raw),baseline=get('contract_baselines',cid),snapshot=baseline&&get('contract_snapshots',baseline.snapshotId);let errors=[],schemaEvaluated=false;
-  if(snapshot){try{errors=validateSchema(snapshot.document,responseSchema(snapshot.document,operation),body);schemaEvaluated=true}catch{errors=[]}if(errors.length)mismatch(cid,operation,snapshot.id,errors)}
+  if(snapshot){try{errors=validateSchema(snapshot.document,responseSchema(snapshot.document,operation),body);schemaEvaluated=true}catch{errors=[]}if(errors.length)mismatch(cid,operation,snapshot.id,errors,body)}
   const candidate=active(cid);let mapped=body;
   if(candidate&&operation===candidate.mapping.operation){if(get('contract_tests',candidate.review?.testId||'')?.baselineId!==baseline?.snapshotId)fail('Approved baseline changed; mapping needs retest and review');if(latest(cid)?.id!==candidate.snapshotId)fail('Active mapping schema version is stale; review required');mapped=copyAmount(body,candidate.mapping);if(snapshot){const remaining=validateSchema(snapshot.document,responseSchema(snapshot.document,operation),mapped);if(remaining.length)fail('Mapped response violates approved baseline: '+remaining.join('; '))}}
   else if(errors.length&&snapshot)fail('UPSTREAM_CONTRACT_VIOLATION: '+errors.join('; '));
