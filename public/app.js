@@ -74,7 +74,7 @@ function head(eyebrow,title,description,actions=''){return `<header class="pageh
 function notice(title,text,amber=false){return `<div class="notice ${amber?'amber':''}">${icon('info')}<div><b>${title}</b><p>${text}</p></div></div>`}
 const rolePolicies={
  operator:{title:'Operator workspace',home:'overview',pages:['overview','audit','connections','explorer','oversight','monitor','reports','standards','gate','diagnostics','activity']},
- bank:{title:'Bank engineer workspace',home:'overview',pages:['overview','audit','connections','monitor','reports','standards','gate','activity']},
+ bank:{title:'Bank engineer workspace',home:'overview',pages:['overview','audit','monitor','reports','standards','gate','activity']},
  tpp:{title:'TPP developer workspace',home:'overview',pages:['overview','explorer','activity']},
  reviewer:{title:'NBG Reviewer workspace',home:'oversight',pages:['overview','oversight','audit','connections','monitor','reports','standards','gate','activity']}
 
@@ -139,10 +139,16 @@ function scopedOverview(){
 }
 function runTable(runs){if(!runs.length)return empty(canRun()?'No audits recorded':'No audit evidence in your scope',canRun()?'Run a bank API audit or review saved API responses.':'Authorized bank diagnostics will appear after runs are shared with your role.',canRun()?button('Run bank API audit','new-run','primary'):'');return `<div class="table-wrap" tabindex="0" role="region" aria-label="Scrollable results"><table><thead><tr><th>Audit</th><th>Evidence</th><th>Status</th><th>Created</th><th></th></tr></thead><tbody>${runs.map(r=>`<tr class="clickable" data-run="${r.id}"><td><b>${e(r.name)}</b><small>${e(profileLabel(r.profile))}</small></td><td>${badge(r.evidenceMode||r.kind)}</td><td>${badge(r.status)}</td><td class="subtle">${date(r.createdAt)}</td><td>${icon('chevron')}</td></tr>`).join('')}</tbody></table></div>`}
 
+function bankAuditContext(){
+ if(state.user.role!=='bank')return '';
+ const banks=state.workspace.connections.filter(c=>c.synthetic&&c.status==='mock_configured');
+ if(!banks.length)return '<div class="notice amber"><div><b>Mock bank unavailable</b><p>Ask the GeoBridge team to check your bank configuration.</p></div></div>';
+ return '<div class="card space bank-audit-context"><div class="pad">'+banks.map(c=>'<div><h2>'+e(c.name)+'</h2><p>'+connectionBadge(c)+' <span class="badge">Synthetic mock</span></p><p class="smalltext">Profile: '+e(profileLabel(c.profile))+'</p></div>').join('')+'</div></div>';
+}
 function audit(){
  const runs=state.workspace.runs.filter(r=>r.kind!=='platform');
  return head('','Audit center','',canRun()?button('Review saved API responses','review-saved')+button(icon('play')+' Run bank API audit','new-run','primary'):button('Compare runs','compare-runs'))+
- '<p class="audit-summary">Run requests against a configured bank connection, or review saved responses without sending new requests.</p><div class="card space"><div class="card-head"><h2>Bank audit history</h2>'+button('Compare runs','compare-runs','small')+'</div>'+auditHistory(runs)+'</div>';
+ bankAuditContext()+'<p class="audit-summary">Run requests against a configured bank connection, or review saved responses without sending new requests.</p><div class="card space"><div class="card-head"><h2>Bank audit history</h2>'+button('Compare runs','compare-runs','small')+'</div>'+auditHistory(runs)+'</div>';
 }
 function diagnostics(){
  if(state.user.role!=='operator')return '';
