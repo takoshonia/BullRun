@@ -22,7 +22,7 @@ test('HTTP workflows: authentication, CSRF, worker, evidence, reports, isolation
   const tppWorkspace=await call('tpp','/api/workspace');
   assert.equal(tppWorkspace.data.connections.length,0);assert.equal(tppWorkspace.data.rules.length,0);assert.equal(tppWorkspace.data.catalog.length,0);assert(!JSON.stringify(tppWorkspace.data.catalog).includes('baseUrl'));
   const standardsWorkspace=await call('standards','/api/workspace');const newDrafts=standardsWorkspace.data.rules.filter(r=>r.id.startsWith('XS2A-ACCOUNT-'));assert.equal(newDrafts.length,6);assert(newDrafts.every(r=>r.status==='draft'&&r.quoteVerified&&r.profile==='xs2a-0.8'&&r.sourceHash&&r.references.length===2));
-  assert(standardsWorkspace.data.connections.length>=3);assert.equal(standardsWorkspace.data.runs.length,0);assert(standardsWorkspace.data.rules.length>0);
+  assert.equal(standardsWorkspace.data.connections.length,0);assert.equal(standardsWorkspace.data.runs.length,0);assert(standardsWorkspace.data.rules.length>0);
   assert.equal((await fetch(origin+'/api/runs',{method:'POST',headers:{Origin:origin,Cookie:sessions.bank.cookie,'Content-Type':'application/json'},body:'{}'})).status,403);
   assert.equal((await call('tpp','/api/runs','POST',{kind:'platform'})).status,403);
   for(const role of ['bank','tpp','reviewer','standards']){assert.equal((await call(role,'/api/diagnostics')).status,403);assert.equal((await call(role,'/api/diagnostics','POST',{})).status,403);assert.equal((await call(role,'/api/runs','POST',{kind:'platform'})).status,403);assert.equal((await call(role,'/api/schedules','POST',{kind:'platform',minutes:60})).status,403)}
