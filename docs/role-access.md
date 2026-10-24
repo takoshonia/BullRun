@@ -6,7 +6,7 @@ Operator is unchanged: all existing pages and technical controls remain availabl
 | --- | --- | --- | --- |
 | Overview | Own bank | Authorized banks | Own integration |
 | Audit center | Own bank: run/review | Authorized banks: run/review | No |
-| Connections | Own bank: register/upload | Read-only readiness | No |
+| Connections | Configured mock bank and audit action | Configured mock banks and audit action | No |
 | TPP explorer | No | No | Published connections, owner-scoped consent |
 | Oversight dashboard | No | Authorized banks | No |
 | Monitoring | Own bank, audit schedules | Authorized bank monitoring, audit schedules | No |
@@ -36,3 +36,5 @@ Startup idempotently adds the scoped identities without rotating Operator. Legac
 Known synthetic mock connections using the shared `bank-demo` tenant are assigned to their adapter-specific bank tenant. Explicit nonlegacy tenant settings are preserved. Ambiguous historical runs, packs, connections and saved immutable reports are not reassigned by guesswork: they remain available to Operator and NBG. New audits belong to the appropriate bank. Existing saved report bytes are never rewritten.
 
 Private pending connections are excluded from the TPP catalog. Only configured synthetic connections or explicitly published connections appear there. Common-interface consent remains owner-, organization-, connection-, and account-scoped.
+
+Bank-facing demo pages use configured synthetic mock banks. Account provisioning no longer creates empty sandbox connections. Untouched, unreferenced legacy placeholders are retained under retired_connections and removed from active connections; customized or referenced records are preserved. Sandbox registration and specification setup remain available to Operator.

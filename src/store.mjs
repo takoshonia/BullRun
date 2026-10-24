@@ -35,7 +35,12 @@ export function provisionDemoAccounts(){
   for(const schedule of all('schedules'))if(get('users',schedule.owner)?.disabled&&schedule.enabled)put('schedules',{...schedule,enabled:false,lastError:'Legacy shared account retired; recreate this schedule with an organization account.'});
   for(const [username,name,role,tenant] of accounts){
    if(!get('users',username)){const password=id().replaceAll('-','');put('users',{id:username,name,role,tenant,password:passwordHash(password)});credentials.push({username,password,role:name,tenant})}
-   if(role==='bank'&&!get('connections',tenant+'-sandbox'))put('connections',{id:tenant+'-sandbox',name:name.replace(' bank engineer','')+' sandbox',bankName:tenant.slice(5).toUpperCase(),tenant,status:'not_connected',environment:'pending',profile:'xs2a-0.8',capabilities:{accounts:'unknown',balances:'unknown',transactions:'unknown'},baseUrl:'',specHash:null,adapter:null,createdAt:new Date().toISOString()});
+   // Retire only untouched generated placeholders; keep customized or referenced records.
+   if(role==='bank'){
+    const placeholder=get('connections',tenant+'-sandbox');
+    const referenced=['runs','schedules','specs'].some(kind=>all(kind).some(x=>x.connectionId===placeholder?.id||kind==='specs'&&x.id===placeholder?.id));
+    if(placeholder&&placeholder.tenant===tenant&&placeholder.name===name.replace(' bank engineer','')+' sandbox'&&placeholder.status==='not_connected'&&placeholder.environment==='pending'&&!placeholder.baseUrl&&!placeholder.specHash&&!placeholder.adapter&&!referenced){put('retired_connections',{...placeholder,retiredReason:'Unused generated sandbox placeholder; demo uses configured mock bank.'});remove('connections',placeholder.id)}
+   }
   }
   fs.writeFileSync(filename,JSON.stringify(credentials.filter(c=>!get('users',c.username)?.disabled),null,2),{mode:0o600});
   db.exec('COMMIT');

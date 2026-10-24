@@ -30,7 +30,7 @@ for(const [role,expected]of Object.entries(expectations))test(role+' lands corre
  if(role==='standards'){assert(html.includes('Standards & rules'));assert(!html.includes('data-nav="audit"'));assert(!html.includes('data-action="new-run"'));}
  if(role==='tpp'){assert(html.includes('Common API access'));assert(!html.includes('data-nav="standards"'));assert(!html.includes('data-nav="audit"'));}
  if(role==='reviewer'){assert(html.includes('Oversight dashboard'));assert(html.includes('data-nav="gate"'));}
- for(const page of expected.pages){ui.navigate(page);assert(element('#app').innerHTML.length>1000,page)}
+ for(const page of expected.pages){ui.navigate(page);const view=element('#app').innerHTML;assert(view.length>1000,page);if(role==='bank'&&page==='connections'){assert(!view.includes('Register sandbox'));assert(!view.includes('Upload OpenAPI'));assert(!view.includes('Sandbox URL'))}if(role==='bank'&&page==='overview')assert(!view.includes('Connections within your authorized scope'))}
  if(role!=='operator'){ui.state.page='diagnostics';ui.render();assert.equal(ui.state.page,expected.home)}
  ui.state.run={id:'previous-user-private-run'};ui.activateSession({user,csrf:'replacement'});assert.equal(ui.state.run,null);assert.equal(ui.state.page,expected.home);assert.equal(ui.state.csrf,'replacement');
  ui.clearSession();assert.equal(ui.state.workspace,null);assert.equal(ui.state.run,null);assert.equal(ui.state.csrf,'');
