@@ -6,7 +6,7 @@ Operator is unchanged: all existing pages and technical controls remain availabl
 | --- | --- | --- | --- |
 | Overview | Own bank | Authorized banks | Own integration |
 | Audit center | Own bank: run/review | Authorized banks: run/review | No |
-| Connections | Configured mock bank and audit action | Configured mock banks and audit action | No |
+| Connections | Not shown; mock status and profile appear in Audit center | Configured mock banks and audit action | No |
 | TPP explorer | No | No | Published connections, owner-scoped consent |
 | Oversight dashboard | No | Authorized banks | No |
 | Monitoring | Own bank, audit schedules | Authorized bank monitoring, audit schedules | No |
