@@ -77,3 +77,4 @@ This is a local development application, not a production service. Do not bind i
 Keep `data/`, `.env`, credentials and local logs out of public repositories. For a clean copy, omit `data/`; new accounts will be generated. Original standards are reference material owned by their respective authors; do not assume redistribution rights from their presence here.
 
 Dependencies: Node.js built-ins only; no third-party UI libraries, fonts, analytics or CDN assets. Node.js and SQLite retain their respective upstream licenses. This project has no selected commercial/open-source license yet; team ownership is retained.
+
