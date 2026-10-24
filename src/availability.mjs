@@ -1,3 +1,4 @@
+import {targetTenant} from './organization-scope.mjs';
 // Synthetic endpoint monitoring only. Targets are operator-configured, never user-supplied URLs.
 import http from 'node:http';
 import https from 'node:https';
@@ -14,7 +15,7 @@ export function parseTargets(raw='[]') {
   seen.add(t.id);
   const adminKey=t.adminKeyFile?fs.readFileSync(t.adminKeyFile,'utf8').trim():'';
   if(adminKey&&Buffer.byteLength(adminKey)<32)throw Error('Mock admin key must be 32+ bytes');
-  return {id:t.id,name:String(t.name||t.id).slice(0,100),tenant:t.tenant||'bank-demo',origin:url.origin,adminKey,adminHeader:t.adapter==='bog-mock-v1'?'X-BOG-Mock-Admin-Key':'X-Gringott-Admin-Key'};
+  return {id:t.id,name:String(t.name||t.id).slice(0,100),tenant:targetTenant(t),origin:url.origin,adminKey,adminHeader:t.adapter==='bog-mock-v1'?'X-BOG-Mock-Admin-Key':'X-Gringott-Admin-Key'};
  });
 }
 
