@@ -45,6 +45,7 @@ test('mock bank changes its own schema, pushes signed HTTP event, and GeoBridge 
   const automatic=await call('tpp-demo',resource,undefined,headers);assert.equal(automatic.status,200);assert.deepEqual(automatic.data.data,baseline.data.data);assert((await call('bank-bog','/api/notifications')).data.items.some(n=>n.action==='contract_policy_succeeded'));
   assert.equal((await action('operator',{action:'push-demo',connectionId:'mock-bog',enabled:false})).status,200);
   for(let i=0;i<150;i++){view=(await call('nbg','/api/contract-review')).data;if(view.automation.runs.some(r=>r.status==='restored_default'))break;await wait(100)}assert(view.automation.runs.some(r=>r.status==='restored_default'),JSON.stringify(view.automation));assert.equal((await call('tpp-demo',resource,undefined,headers)).status,200);
+  const finalInbox=(await call('bank-bog','/api/notifications')).data.items;assert.equal(finalInbox.filter(n=>n.action==='contract_mapping_rolled_back').length,2,'Manual rollback and automatic restoration each notify once');
   assert(!JSON.stringify(view).includes(secret));assert(!JSON.stringify(view).includes(adminKey));
  }finally{app.kill();await publisher.close();await upstream.close();await new Promise(r=>app.once('exit',r));fs.rmSync(dir,{recursive:true,force:true,maxRetries:5,retryDelay:100})}
 });
