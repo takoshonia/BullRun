@@ -478,3 +478,7 @@
 .bank-alert{display:inline-block;margin:4px 6px 4px 0}.bank-alert.handled_by_adapter{background:#fff4cf;color:#795600;border:1px solid #efd88a}.bank-alert.bank_action_required{background:#fce8e7;color:#a42f2a;border:1px solid #efbbb7}.bank-alert.review_pending,.bank-review-neutral{background:#edf0f4;color:#445169;border:1px solid #cbd2dd}.bank-alert-row{padding:16px 0;border-top:1px solid var(--line)}.bank-alert-row strong{display:block;margin-top:6px}.bank-alert-row p{margin:8px 0;line-height:1.6}
 
 .notification-item{padding:18px 0;border-bottom:1px solid var(--line)}.notification-item.unread{border-left:3px solid var(--teal);padding-left:16px}.notification-item p{line-height:1.6}.notification-item:last-child{border-bottom:0}#notification-count{font-variant-numeric:tabular-nums;margin-left:6px}
+
+.contract-history>summary,.contract-technical>summary{cursor:pointer;font-weight:600;}.contract-history[open]>summary,.contract-technical[open]>summary{margin-bottom:16px}.contract-policy-heading{display:flex;align-items:center;justify-content:space-between;gap:16px}.contract-policy-heading h3{margin:0}.contract-mapping-path,.contract-diff .mono{overflow-wrap:anywhere}.contract-history .contract-diff{margin:12px 0}.contract-technical pre{max-height:320px;overflow:auto}
+
+.contract-schema-version{padding:14px 0;border-bottom:1px solid var(--line,#e2e7e7)}
