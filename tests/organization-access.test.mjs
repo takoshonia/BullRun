@@ -39,7 +39,7 @@ test('organization accounts enforce bank isolation, NBG review powers and TPP pr
    assert.equal((await call(user,'/api/runs/'+completed.id+'/export/json')).status,404);
    assert.equal((await call(user,'/api/reports/'+completed.reportId)).status,user==='tpp-demo'?403:404);
   }
-  assert.equal((await call('bank-bog','/api/reports/'+completed.reportId)).status,200);
+  assert.equal((await call('bank-bog','/api/reports/'+completed.reportId)).status,completed.results.some(f=>f.verdict==='FAIL')?200:404);
   const second=await call('nbg','/api/runs','POST',{kind:'evidence',packId:pack.id});assert.equal(second.status,201);
   let secondRun;for(let i=0;i<100;i++){secondRun=(await call('nbg','/api/runs/'+second.data.id)).data;if(secondRun.status==='completed')break;await sleep(100)}assert.equal(secondRun.status,'completed');
   assert.equal((await call('nbg','/api/compare','POST',{before:completed.id,after:secondRun.id})).status,200);

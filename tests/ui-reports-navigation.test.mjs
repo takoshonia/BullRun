@@ -1,0 +1,25 @@
+import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';
+const code=fs.readFileSync(new URL('../public/app.js',import.meta.url),'utf8');
+async function load(){const nodes=new Map(),element=s=>{if(!nodes.has(s))nodes.set(s,{innerHTML:'',style:{},setAttribute(name,value){this[name]=value},focus(){this.focused=true},scrollIntoView(){this.scrolled=true},addEventListener(){},showModal(){},close(){}});return nodes.get(s);};const document={querySelector:element,querySelectorAll:()=>[],addEventListener(){}};const user={id:'operator',name:'Operator',tenant:'platform',role:'operator'},w={connections:[{id:'bank-a',name:'Bank A'},{id:'bank-b',name:'Bank B'}],runs:[],rules:[],profiles:[],sources:[],packs:[],schedules:[],ai:{configured:false}};const fetch=async url=>({ok:true,json:async()=>url==='/api/me'?{user,csrf:'test'}:url==='/api/events'?[]:w});const AsyncFunction=Object.getPrototypeOf(async function(){}).constructor;return new AsyncFunction('document','fetch','setInterval','setTimeout','clearTimeout',code+'\nreturn {state,activeNavigation,groupedFindings,resultCounts,selectHistoryRuns,auditHistory,connectionBadge,connections,connectionDetail,dialogNotice,showError,dialog,element:document.querySelector,parseFilterDate,displayFilterDate,date,schemaViewer,contractBankCard,audit,standards,reports,savedReportTable,reportList,reportFilters,refreshAvailability,recordRoute,restoreRoute,navigate,showRun};')(document,fetch,()=>{},()=>{},()=>{});}
+
+test('bank report/history filters omit bank dimensions and review reports come first',async()=>{
+ const ui=await load();ui.state.user={id:'bank-bog',role:'bank',tenant:'bank-bog'};ui.state.workspace.savedReports=[];
+ ui.state.workspace.runs=[{id:'fail',kind:'bank',name:'Failed run',connectionId:'bank-a',status:'completed',bankReview:true,counts:{FAIL:1},createdAt:'2026-10-25T00:00:00Z'},{id:'own',name:'Own run',kind:'bank',status:'completed',createdAt:'2026-10-24T00:00:00Z',counts:{PASS:1}}];
+ for(const html of [ui.audit(),ui.reports()]){assert(!html.includes('Bank / connection'));assert(!html.includes('All banks'));assert(!html.includes('value="bank"'));assert(html.includes('Group by'));assert(html.includes('failed check'));}
+ const html=ui.audit();assert(html.indexOf('Reports requiring review')<html.indexOf('Bank audit history'));assert(!html.includes('Investigation may'));
+ ui.state.listFilters={'report-bundles':{bank:'',from:'2026-10-25',to:'2026-10-25',group:'result',result:'failed'}};
+ const reports=ui.reports();assert(reports.includes('Failed checks'));assert(reports.includes('Download findings'));assert(!reports.includes('data-run="own"'));
+});
+test('Operator and NBG report lists support bank/date/result groups and escape metadata',async()=>{
+ const ui=await load();ui.state.workspace.savedReports=[];ui.state.workspace.runs=[{id:'a',name:'<unsafe>',kind:'bank',status:'completed',connectionId:'bank-a',counts:{FAIL:1},createdAt:'2026-10-25T00:00:00Z'},{id:'b',name:'Other bank',kind:'bank',status:'completed',connectionId:'bank-b',counts:{PASS:2},createdAt:'2026-10-24T00:00:00Z'}];
+ for(const role of ['operator','reviewer']){ui.state.user.role=role;ui.state.listFilters={'report-bundles':{bank:'bank-a',group:'bank',from:'',to:'',result:''}};const html=ui.reports();assert(html.includes('Bank / connection'));assert(html.includes('value="bank"'));assert(html.includes('&lt;unsafe&gt;'));assert(!html.includes('data-run="b"'));assert(html.includes('browse-report-type'));}
+});
+test('bank standards hide draft review work while preserving applicable approved sources',async()=>{
+ const ui=await load();ui.state.user.role='bank';ui.state.workspace.updates=[];ui.state.workspace.rules=[{id:'approved',title:'Approved',status:'approved',profile:'p'},{id:'draft',title:'Hidden draft',status:'draft',profile:'p'}];ui.state.workspace.profiles=[{id:'p',name:'Profile',status:'needs_review'}];
+ const html=ui.standards();assert(!html.includes('Hidden draft'));assert(!html.includes('badge needs_review'));assert(html.includes('Approved'));assert(html.includes('Profile'));
+});
+test('browser route history tracks pages once and rejects history from another account',async()=>{
+ const previous=globalThis.window,entries=[];const history={state:null,replaceState(entry){this.state=entry;if(entries.length)entries[entries.length-1]=entry;else entries.push(entry)},pushState(entry){this.state=entry;entries.push(entry)}};
+ globalThis.window={history,scrollTo(){},addEventListener(){}};
+ try{const ui=await load();const initial=entries.length;ui.navigate('audit');ui.navigate('reports');assert.equal(entries.length,initial+2);ui.recordRoute();assert.equal(entries.length,initial+2);const prior=entries[entries.length-2];history.state=prior;await ui.restoreRoute(prior);assert.equal(ui.state.page,'audit');assert.equal(entries.length,initial+2);await ui.restoreRoute({geobridge:true,identity:'another account',route:{page:'detail',runId:'private'}});assert.equal(ui.state.page,'overview');assert.notEqual(ui.state.run?.id,'private');}finally{globalThis.window=previous;}
+});

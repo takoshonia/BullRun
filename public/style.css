@@ -472,3 +472,5 @@
 .bank-review-flag{background:#fff4cf;color:#795600;border:1px solid #efd88a;}
 
 .contract-push-table td small{display:block;margin-top:6px;color:var(--muted);line-height:1.5}.contract-push-table td{vertical-align:top;overflow-wrap:anywhere}
+.report-failure{display:inline-block;margin:4px 6px 4px 0;background:#fce8e7;color:#a42f2a;border:1px solid #efbbb7;}
+.report-filters{padding:20px;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));}.report-card .btn{margin-top:14px;}.report-filters input,.report-filters select{width:100%;min-width:0;}.refresh-dots{display:inline-flex;gap:5px;align-items:center;min-height:18px;padding:0 8px;}.refresh-dots i{width:5px;height:5px;border-radius:50%;background:currentColor;animation:refresh-dot 1s infinite;}.refresh-dots i:nth-child(2){animation-delay:.15s}.refresh-dots i:nth-child(3){animation-delay:.3s}@keyframes refresh-dot{0%,70%,100%{opacity:.25;transform:translateY(0)}35%{opacity:1;transform:translateY(-3px)}}@media(prefers-reduced-motion:reduce){.refresh-dots i{animation:none;opacity:.7}}

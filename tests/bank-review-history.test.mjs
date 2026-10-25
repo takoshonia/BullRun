@@ -22,3 +22,5 @@ test('direct read policy matches history, resolves old actor roles and isolates 
  assert.equal(sharedBankReview({...rows[0],results:[{verdict:'NEEDS_REVIEW'}]},users),false);
  assert.equal(sharedBankReview({...rows[0],status:'failed'},users),false);
 });
+
+test('failed supervisory specification and evidence audits are included, while platform diagnostics never are',()=>{for(const kind of ['bank','spec','evidence']){const r={...rows[0],kind};assert(sharedBankReview(r,users));assert(auditVisible({role:'bank',tenant:'bank-bog'},r,users));assert(!auditVisible({role:'reviewer',tenant:'nbg'},{...r,actor:'private-bank'},users))}assert(!sharedBankReview({...rows[0],kind:'platform'},users));});
