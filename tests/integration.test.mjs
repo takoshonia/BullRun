@@ -46,7 +46,7 @@ test('HTTP workflows: authentication, CSRF, worker, evidence, reports, isolation
   const saved=await call('bank',reportUrl);assert.equal(saved.status,200);assert.equal(saved.data.version,1);assert.equal(saved.data.snapshot.run.id,reviewed.id);
   const originalHtml=await call('bank',reportUrl+'/html');assert.equal(originalHtml.status,200);assert(originalHtml.data.includes('Full audit report'));
   assert.equal((await call('bank','/api/runs/'+reviewed.id+'/export/full')).data,originalHtml.data);
-  assert.equal((await call('reviewer',reportUrl)).status,200);
+  assert.equal((await call('reviewer',reportUrl)).status,404,'bank-created evidence stays private');
   for(const role of ['tpp'])assert.equal((await call(role,reportUrl)).status,403);
   assert.equal((await call('reviewer','/api/reports/'+done.reportId)).status,404);
   const revision={requestId:crypto.randomUUID(),reason:'Reviewed descriptive report version for bank delivery'};
