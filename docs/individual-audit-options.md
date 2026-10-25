@@ -1,0 +1,5 @@
+# Individual bank audit options
+
+All individual Run bank API audit actions open one form. Include extended quality suite is selected by default (adds supported security probes as well as the reliability/latency workload), with 95% valid responses and 500ms successful-request p95. These are demo criteria, not NBG requirements. p50 remains a measured output with no invented threshold. The existing 3 warm-up + 30 measured sequential balance workload, 2s timeout, 90s deadline and five-consecutive-failure limit are unchanged.
+
+The form forwards qualitySuite and policy to the existing readiness-guarded bank audit flow. Unchecking it runs the ordinary functional/security capture; empty reliability/latency charts say Benchmark not requested. Incomplete benchmarks retain actual evidence and unassessed verdicts. Retest opens the form with that run's benchmark choice and thresholds. Cross-bank comparison, rules, consent boundaries and imported evidence are unchanged. Existing historical records are not rewritten.
