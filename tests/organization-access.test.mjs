@@ -56,6 +56,16 @@ test('organization accounts enforce bank isolation, NBG review powers and TPP pr
   assert((await call('bank-bog','/api/events')).data.some(e=>e.target===schedule.data.id));assert(!(await call('bank-tbc','/api/events')).data.some(e=>e.target===schedule.data.id));
   assert.equal((await call('nbg','/api/rules/COMMON-JSON/review','POST',{approve:true,confirm:true,note:'Demo NBG applicability review of the original source.'})).status,200);
   assert.equal((await call('operator','/api/diagnostics')).status,200);
+  const sharingDB=new DatabaseSync(path.join(dir,'geobridge.sqlite'));
+  for(const [id,actor,verdict] of [['shared-op','operator','FAIL'],['shared-nbg','nbg','FAIL'],['private-bank','bank-bog','FAIL'],['hidden-pass','operator','PASS']]){
+   const row={id,actor,tenant:'bank-bog',kind:'bank',status:'completed',name:id,createdAt:new Date().toISOString(),results:[{id:'check',title:'Check',layer:'security',verdict}],counts:{[verdict]:1},metrics:[]};
+   sharingDB.prepare('INSERT INTO records VALUES(?,?,?)').run('runs',id,JSON.stringify(row));
+  }sharingDB.close();
+  for(const id of ['shared-op','shared-nbg']){assert.equal((await call('bank-bog','/api/runs/'+id)).status,200);assert.equal((await call('bank-tbc','/api/runs/'+id)).status,404)}
+  for(const user of ['operator','nbg']){assert.equal((await call(user,'/api/runs/private-bank')).status,404);assert.equal((await call(user,'/api/runs/private-bank/export/json')).status,404);assert(!(await call(user,'/api/workspace')).data.runs.some(r=>r.id==='private-bank'))}
+  assert.equal((await call('bank-bog','/api/runs/hidden-pass')).status,404);
+  assert.equal((await call('bank-bog','/api/workspace')).data.runs.filter(r=>r.bankReview).length,2);
+
  }finally{proc.kill();await new Promise(resolve=>proc.once('exit',resolve));fs.rmSync(dir,{recursive:true,force:true})}
 });
 
