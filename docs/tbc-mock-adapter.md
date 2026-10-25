@@ -7,10 +7,10 @@ This connects the independently hosted hackathon mock at https://tbc-bank-mock-o
 Append this entry to the existing `GEOBRIDGE_MOCK_TARGETS` array. Preserve the Gringott entry and existing environment, volume and secret mounts:
 
 ```json
-{"id":"tbc","name":"TBC independent mock","adapter":"tbc-mock-v1","origin":"https://tbc-bank-mock-open-banking-api.vercel.app","tenant":"bank-demo","monitor":false}
+{"id":"tbc","name":"TBC independent mock","adapter":"tbc-mock-v1","origin":"https://tbc-bank-mock-open-banking-api.vercel.app","tenant":"bank-demo","monitor":true}
 ```
 
-`monitor:false` excludes this target from the existing Gringott-style `/api/health` monitor: the TBC deployment does not expose that endpoint. AIS audits and their per-operation timings work independently. No TBC admin key or pasted bearer token is required. `GEOBRIDGE_TBC_MOCK_TIMEOUT_MS` defaults to 10000 (200–10000), a transport budget, not a standards threshold.
+TBC monitoring uses `/mock/endpoints` as a bounded service-reachability probe, not `/api/health` or an authenticated AIS check. Existing deployments with `monitor:false` must change only that flag to true in their private target configuration, recreate GeoBridge preserving its volume, environment and networks, then enable TBC in Monitoring. Existing health targets and intervals remain unchanged. AIS audits and their timings remain independent. No TBC admin key or pasted bearer token is required. `GEOBRIDGE_TBC_MOCK_TIMEOUT_MS` defaults to 10000 (200–10000), a transport budget, not a standards threshold.
 
 ## Authorization and mapping
 

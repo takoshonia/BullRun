@@ -5,6 +5,15 @@ import https from 'node:https';
 import fs from 'node:fs';
 import crypto from 'node:crypto';
 
+export function probeProfile(target){const reachability=target.adapter==='tbc-mock-v1'||target.id==='tbc';return reachability?{kind:'endpoint_catalog',path:'/mock/endpoints',label:'Mock service reachability',description:'GET /mock/endpoints; HTTP 200 with a valid endpoint catalogue. Not an authenticated AIS check.',maxResponseBytes:512000}:{kind:'health',path:'/api/health',label:'Mock health endpoint',description:'GET /api/health; HTTP 200 with JSON status=ok',maxResponseBytes:8192};}
+export function validProbeResponse(data,kind='health'){if(kind==='health')return data?.status==='ok';if(kind==='endpoint_catalog')return !!data&&Array.isArray(data.operations)&&data.operations.length>0&&data.operations.every(op=>op&&typeof op.method==='string'&&['GET','POST','PUT','PATCH','DELETE','HEAD','OPTIONS'].includes(op.method.toUpperCase())&&typeof op.path==='string'&&op.path.startsWith('/'));return false;}
+export function observationTimeline(samples,from,to,count=60){
+ const width=(to-from)/count;if(!Number.isFinite(width)||width<=0||!Number.isInteger(count)||count<1||count>120)throw Error('Invalid timeline window');
+ const bins=Array.from({length:count},(_,i)=>({from:from+i*width,to:from+(i+1)*width,checks:0,successes:0,failures:0,upMs:0,downMs:0,unknownMs:width})),rows=[...samples].sort((a,b)=>a.at-b.at);
+ for(const row of rows){const index=Math.min(count-1,Math.floor((row.at-from)/width));if(index>=0&&row.at<=to){bins[index].checks++;bins[index][row.outcome==='up'?'successes':'failures']++;}}
+ for(let i=1;i<rows.length;i++){const a=rows[i-1],b=rows[i];if(a.epoch!==b.epoch||b.at-a.at>a.intervalMs*2.5)continue;for(const bin of bins){const duration=Math.max(0,Math.min(b.at,bin.to)-Math.max(a.at,bin.from));bin[a.outcome==='up'?'upMs':'downMs']+=duration;}}
+ for(const bin of bins)bin.unknownMs=Math.max(0,width-bin.upMs-bin.downMs);return bins;
+}
 export function parseTargets(raw='[]') {
  const list=JSON.parse(raw);
  if(!Array.isArray(list)||list.length>10)throw Error('Configure at most 10 synthetic monitoring targets');
@@ -15,11 +24,12 @@ export function parseTargets(raw='[]') {
   seen.add(t.id);
   const adminKey=t.adminKeyFile?fs.readFileSync(t.adminKeyFile,'utf8').trim():'';
   if(adminKey&&Buffer.byteLength(adminKey)<32)throw Error('Mock admin key must be 32+ bytes');
-  return {id:t.id,name:String(t.name||t.id).slice(0,100),tenant:targetTenant(t),origin:url.origin,adminKey,adminHeader:t.adapter==='bog-mock-v1'?'X-BOG-Mock-Admin-Key':t.adapter==='tbc-mock-v1'?null:'X-Gringott-Admin-Key'};
+  return {id:t.id,name:String(t.name||t.id).slice(0,100),tenant:targetTenant(t),origin:url.origin,adminKey,adminHeader:t.adapter==='bog-mock-v1'?'X-BOG-Mock-Admin-Key':(t.adapter==='tbc-mock-v1'||t.id==='tbc')?null:'X-Gringott-Admin-Key'};
  });
 }
 
-export function requestJSON(url,{timeoutMs=2000,method='GET',body,headers={},maxResponseBytes=8192}={}) {
+export function requestJSON(url,{timeoutMs=2000,method='GET',body,headers={},maxResponseBytes=8192,probeKind='health'}={}) {
+ if(!['health','endpoint_catalog'].includes(probeKind))throw Error('Invalid probe kind');
  if(!Number.isInteger(maxResponseBytes)||maxResponseBytes<1||maxResponseBytes>2_000_000)throw Error('Invalid response size limit');
  return new Promise(resolve=>{
   const start=performance.now();let done=false,timer;
@@ -27,7 +37,7 @@ export function requestJSON(url,{timeoutMs=2000,method='GET',body,headers={},max
   const req=(url.startsWith('https:')?https:http).request(url,{method,headers:{Accept:'application/json',...(body?{'Content-Type':'application/json'}:{}),...headers}},res=>{
    let text='',bytes=0;
    res.on('data',chunk=>{bytes+=chunk.length;if(bytes>maxResponseBytes){finish({outcome:'invalid_response',httpStatus:res.statusCode});res.destroy();req.destroy();}else text+=chunk;});
-   res.on('end',()=>{let data;try{data=JSON.parse(text)}catch{}finish({outcome:res.statusCode===200&&data?.status==='ok'?'up':'down',httpStatus:res.statusCode,data});});
+   res.on('end',()=>{let data;try{data=JSON.parse(text)}catch{}finish({outcome:res.statusCode===200&&validProbeResponse(data,probeKind)?'up':'down',httpStatus:res.statusCode,data});});
    res.on('error',()=>finish({outcome:'network_error',httpStatus:res.statusCode}));
   });
   // Absolute deadline includes DNS, connection, headers and body. Redirects are never followed.
@@ -60,25 +70,26 @@ export function createAvailability({db,targets,clock=Date.now,request=requestJSO
  db.exec(`CREATE TABLE IF NOT EXISTS availability_monitors(id TEXT PRIMARY KEY,enabled INTEGER NOT NULL,interval_ms INTEGER NOT NULL,timeout_ms INTEGER NOT NULL,created_at INTEGER NOT NULL);
  CREATE TABLE IF NOT EXISTS availability_samples(id INTEGER PRIMARY KEY AUTOINCREMENT,target TEXT NOT NULL,at INTEGER NOT NULL,outcome TEXT NOT NULL,http_status INTEGER,duration_ms INTEGER NOT NULL,epoch TEXT NOT NULL,interval_ms INTEGER NOT NULL);
  CREATE INDEX IF NOT EXISTS availability_target_time ON availability_samples(target,at);`);
+ if(!db.prepare('PRAGMA table_info(availability_samples)').all().some(c=>c.name==='probe_kind'))db.exec("ALTER TABLE availability_samples ADD COLUMN probe_kind TEXT NOT NULL DEFAULT 'health'");
  const live=new Set(),epochs=new Map(),due=new Map();let stopped=false,timer;
  for(const t of targets){db.prepare('INSERT OR IGNORE INTO availability_monitors VALUES(?,0,30000,2000,?)').run(t.id,clock());epochs.set(t.id,crypto.randomUUID());}
  const config=id=>db.prepare('SELECT * FROM availability_monitors WHERE id=?').get(id);
  const target=id=>{const t=targets.find(t=>t.id===id);if(!t)throw Error('Unknown configured mock target');return t;};
  function report(id,from=clock()-86400000,to=clock()){
-  const t=target(id),c=config(id);
+  const t=target(id),c=config(id),profile=probeProfile(t);
   if(!Number.isFinite(from)||!Number.isFinite(to)||from>=to||to-from>30*86400000||to>clock()+1000)throw Error('Report window must be valid and at most 30 days');
-  const samples=db.prepare('SELECT at,outcome,http_status AS httpStatus,duration_ms AS durationMs,epoch,interval_ms AS intervalMs FROM availability_samples WHERE target=? AND at>=? AND at<=? ORDER BY at,id').all(id,from,to);
+  const samples=db.prepare('SELECT at,outcome,http_status AS httpStatus,duration_ms AS durationMs,epoch,interval_ms AS intervalMs FROM availability_samples WHERE target=? AND at>=? AND at<=? AND probe_kind=? ORDER BY at,id').all(id,from,to,profile.kind);
   const summary=summarize(samples,{from,to,enabled:!!c.enabled,intervalMs:c.interval_ms,now:clock()});
   if(c.enabled&&samples.at(-1)?.epoch!==epochs.get(id))summary.currentStatus='unknown';
-  return {id,name:t.name,tenant:t.tenant,synthetic:true,probe:'GET /api/health; HTTP 200 with JSON status=ok',enabled:!!c.enabled,intervalSeconds:c.interval_ms/1000,timeoutSeconds:c.timeout_ms/1000,...summary,recentSamples:samples.slice(-100)};
+  return {id,name:t.name,tenant:t.tenant,synthetic:true,probe:profile.description,probeKind:profile.kind,probeLabel:profile.label,enabled:!!c.enabled,intervalSeconds:c.interval_ms/1000,timeoutSeconds:c.timeout_ms/1000,...summary,limitations:[profile.kind==='endpoint_catalog'?'Endpoint-catalogue reachability only; not health, authenticated AIS availability or a bank SLA.':summary.limitations[0],...summary.limitations.slice(1)],timeline:observationTimeline(samples,from,to),recentSamples:samples.slice(-100)};
  }
  async function probe(id){
   const t=target(id),c=config(id);if(stopped||live.has(id)||!c.enabled||(due.get(id)||0)>clock())return false;
   live.add(id);const epoch=epochs.get(id),at=clock();due.set(id,at+c.interval_ms);
   try{
-   let r;try{r=await request(t.origin+'/api/health',{timeoutMs:c.timeout_ms})}catch{r={outcome:'network_error',httpStatus:null,durationMs:0};}
+   let r;try{const profile=probeProfile(t);r=await request(t.origin+profile.path,{timeoutMs:c.timeout_ms,maxResponseBytes:profile.maxResponseBytes,probeKind:profile.kind})}catch{r={outcome:'network_error',httpStatus:null,durationMs:0};}
    if(stopped||epoch!==epochs.get(id))return false;
-   db.prepare('INSERT INTO availability_samples(target,at,outcome,http_status,duration_ms,epoch,interval_ms) VALUES(?,?,?,?,?,?,?)').run(id,clock(),r.outcome,r.httpStatus??null,r.durationMs,epoch,c.interval_ms);
+   db.prepare('INSERT INTO availability_samples(target,at,outcome,http_status,duration_ms,epoch,interval_ms,probe_kind) VALUES(?,?,?,?,?,?,?,?)').run(id,clock(),r.outcome,r.httpStatus??null,r.durationMs,epoch,c.interval_ms,probeProfile(t).kind);
    // Rolling 30-day evidence retention. No downtime is invented for removed samples.
    db.prepare('DELETE FROM availability_samples WHERE at<?').run(clock()-30*86400000);
    return true;
