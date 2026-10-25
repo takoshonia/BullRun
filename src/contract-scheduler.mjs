@@ -9,6 +9,6 @@ export function createContractScheduler({targets,get,scan,minutes=contractInterv
   async tick(){for(const target of targets()){const at=Date.parse(get('contract_scan_status',target.id)?.checkedAt||'');if(Number.isFinite(at)&&clock()-at<minutes*60000)continue;try{await run(target.id,'scheduled_contract_scan')}catch{ /* Scan status retains failure; retry on the next configured interval. */ }}},
   // Internal integration seam only: a future provider-specific webhook must verify
   // its signature, timestamp and bank identity before calling this method.
-  async notify(connectionId){if(!targets().some(t=>t.id===connectionId))throw Error('Unknown configured mock bank');const last=notifications.get(connectionId);if(last!==undefined&&clock()-last<30000)return false;notifications.set(connectionId,clock());return run(connectionId,'verified_bank_change_notification')}
+  async notify(connectionId,{force=false}={}){if(!targets().some(t=>t.id===connectionId))throw Error('Unknown configured mock bank');const last=notifications.get(connectionId);if(!force&&last!==undefined&&clock()-last<30000)return false;notifications.set(connectionId,clock());return run(connectionId,'verified_bank_change_notification')}
  };
 }

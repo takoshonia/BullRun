@@ -1,3 +1,4 @@
+import {createContractWebhooks,webhookConfiguration,webhookBody} from './contract-webhooks.mjs';
 import {auditVisible,auditActorRole,sharedBankReview} from './audit-visibility.mjs';
 import {createContractScheduler,contractIntervalMinutes} from './contract-scheduler.mjs';
 import {createContractReview} from './contract-review.mjs';
@@ -24,7 +25,7 @@ import {explain} from './ai.mjs';
 import {contract} from './contracts.mjs';
 import {compareRuns,specDiff} from './compare.mjs';
 import {workspacePayload} from './workspace-access.mjs';
-import {createAvailability,parseTargets} from './availability.mjs';
+import {createAvailability,parseTargets,requestJSON} from './availability.mjs';
 import {seedAdapterConnections,adapterTargets} from './adapters/registry.mjs';
 import {createCommonAIS} from './adapters/common-ais.mjs';
 const contractReview=createContractReview({all,get,put,event,router:()=>providerRouter});
@@ -32,6 +33,9 @@ const commonAIS=createCommonAIS({processResponse:contractReview.process});
 const providerRouter=createProviderRouter({db});
 const contractScanMinutes=contractIntervalMinutes();
 const contractScheduler=createContractScheduler({targets:adapterTargets,get,scan:contractReview.scan,minutes:contractScanMinutes});
+const contractWebhookConfig=webhookConfiguration(process.env.GEOBRIDGE_CONTRACT_WEBHOOKS||'[]',adapterTargets());
+const contractWebhooks=createContractWebhooks({configuration:contractWebhookConfig,all,get,put,event,notify:cid=>contractScheduler.notify(cid,{force:true}),scanStatus:cid=>get('contract_scan_status',cid)});
+const webhookTick=setInterval(()=>{contractWebhooks.tick().catch(()=>console.error('Contract webhook queue unavailable'))},1000);webhookTick.unref();
 const contractTick=setInterval(()=>{contractScheduler.tick().catch(()=>console.error('Contract monitor unavailable'))},60000);contractTick.unref();
 const narrativeJobs=createNarrativeJobs(db,savedReports,{generate:(snapshot,options)=>generateNarrative(snapshot,{...options,router:providerRouter})});
 const narrativeTick=setInterval(()=>{narrativeJobs.tick().catch(()=>console.error('Report explanation scheduler unavailable'))},1000);narrativeTick.unref();
@@ -87,6 +91,8 @@ const server=http.createServer(async(req,res)=>{
  if(!['GET','POST','DELETE','PATCH'].includes(method))throw error(405,'Method not allowed');
  if(!p.startsWith('/api/')&&!p.startsWith('/bridge/')){if(method!=='GET')throw error(405,'Read-only asset');const asset=p==='/'?'index.html':p.slice(1);if(!['index.html','app.js','style.css','logo.png','logo-login.png'].includes(asset))throw error(404,'Not found');const file=path.join(root,'public',asset);return send(res,200,fs.readFileSync(file),asset.endsWith('js')?'text/javascript':asset.endsWith('css')?'text/css':asset.endsWith('png')?'image/png':'text/html')}
  if(p==='/api/health')return send(res,200,{status:'ok',version:'0.1.0',bankConnections:adapterTargets().length?'mock_only':'not_configured',realBankConnections:'not_configured'});
+ const webhookMatch=p.match(/^\/api\/webhooks\/contracts\/(mock-[a-z0-9-]+)$/);
+ if(webhookMatch&&method==='POST'){if(!String(req.headers['content-type']||'').startsWith('application/json'))throw error(415,'JSON webhook required');req.setTimeout(10000,()=>req.destroy());const receipt=contractWebhooks.accept(webhookMatch[1],req.headers,await webhookBody(req));send(res,202,receipt);void contractWebhooks.tick().catch(()=>console.error('Contract webhook queue unavailable'));return;}
  if(method!=='GET'&&req.headers.origin!==origin)throw error(403,'Origin check failed. Open '+origin);
  if(p==='/api/login'&&method==='POST'){
  const address=req.socket.remoteAddress,prev=loginAttempts.get(address)||{n:0,start:Date.now()};if(Date.now()-prev.start>60000){prev.n=0;prev.start=Date.now()}if(++prev.n>10)throw error(429,'Too many login attempts; wait one minute');loginAttempts.set(address,prev);
@@ -174,12 +180,14 @@ const server=http.createServer(async(req,res)=>{
  }
  if(p.match(/^\/api\/packs\/[^/]+$/)&&method==='GET'){requireRole(u,'bank','operator');const pack=get('packs',p.split('/')[3]);if(!scope(u,pack))throw error(404,'Evidence not found');return send(res,200,pack)}
  if(p.match(/^\/api\/contract-review\/snapshots\/[a-f0-9]+$/)&&method==='GET'){requireRole(u,'operator','reviewer');const snapshot=get('contract_snapshots',p.split('/')[4]);if(!snapshot)throw error(404,'Schema snapshot not found');return send(res,200,snapshot.document)}
- if(p==='/api/contract-review'&&method==='GET'){requireRole(u,'operator','reviewer');return send(res,200,{...contractReview.view(),monitoring:{schemaIntervalMinutes:contractScanMinutes,availability:'separate_monitor',responseValidation:'during_existing_requests',bankWebhookConnected:false}})}
+ if(p==='/api/contract-review'&&method==='GET'){requireRole(u,'operator','reviewer');return send(res,200,{...contractReview.view(),push:{...contractWebhooks.view(),demoControls:contractWebhookConfig.filter(c=>c.controlKey).map(c=>c.connectionId)},monitoring:{schemaIntervalMinutes:contractScanMinutes,availability:'separate_monitor',responseValidation:'during_existing_requests',bankWebhookConnected:contractWebhookConfig.length>0}})}
  if(p==='/api/contract-review/action'&&method==='POST'){
   requireRole(u,'operator','reviewer');const b=await body(req);if(!b||typeof b!=='object'||Array.isArray(b))throw error(400,'Contract action object required');let result;
-  if(b.action==='scan'){result=await contractReview.scan(b.connectionId,u.id)}
+  if(b.action==='push-demo'){
+   requireRole(u,'operator');const config=contractWebhookConfig.find(c=>c.connectionId===b.connectionId&&c.controlKey),target=adapterTargets().find(t=>t.id===b.connectionId);if(!config||!target)throw error(404,'Mock push publisher not configured');if(typeof b.enabled!=='boolean')throw error(400,'Explicit mock change state required');if(get('contract_demo',b.connectionId)?.enabled)throw error(409,'Disable the GeoBridge-only overlay before using the external mock publisher');const response=await requestJSON(target.origin+'/__push/admin/change',{method:'POST',timeoutMs:5000,maxResponseBytes:16384,headers:{'X-Mock-Push-Admin-Key':config.controlKey},body:{enabled:b.enabled}});if(![200,202].includes(response.httpStatus)||typeof response.data?.changed!=='boolean')throw error(502,'Mock publisher did not accept the change');const reply=response.data;result={eventId:reply.eventId,notice:reply.changed?'Mock bank queued a signed change notification. GeoBridge will scan automatically after verifying it.':'Mock bank already has that schema; no change event created.'};event(u.id,'mock_push_change_requested',b.connectionId,{enabled:b.enabled,eventId:reply.eventId||null});
+  }else if(b.action==='scan'){result=await contractReview.scan(b.connectionId,u.id)}
   else if(b.action==='baseline'){requireRole(u,'reviewer');contractReview.baseline(b.connectionId,b.snapshotId,u.id,b.note);result={ok:true}}
-  else if(b.action==='demo'){requireRole(u,'operator');contractReview.demo(b.connectionId,b.enabled,u.id);result={ok:true}}
+  else if(b.action==='demo'){requireRole(u,'operator');if(b.enabled&&contractWebhookConfig.some(c=>c.connectionId===b.connectionId&&c.controlKey))throw error(409,'Use the separate mock publisher controls for this bank, not a GeoBridge-only overlay');contractReview.demo(b.connectionId,b.enabled,u.id);result={ok:true}}
   else if(b.action==='propose')result=await contractReview.propose(b.connectionId,b.mapping,u.id);
   else if(b.action==='suggest')result=await contractReview.suggest(b.connectionId,u.id);
   else if(b.action==='test'){requireRole(u,'operator');result=await contractReview.test(b.id,u.id)}
@@ -225,4 +233,4 @@ const server=http.createServer(async(req,res)=>{
 });
 server.on('error',e=>{console.error(e.code==='EADDRINUSE'?'GeoBridge port is already in use. Close the previous instance or choose another PORT.':e.message);process.exitCode=1;clearInterval(tick)});
 server.listen(PORT,HOST,()=>{console.log(`GeoBridge is running at ${origin}`);console.log('Demo credentials: '+path.join(dataDir,'demo-credentials.json'));console.log(adapterTargets().length?'Synthetic AIS adapters configured; no real bank connected.':'No bank adapters configured.');});
-process.on('SIGTERM',()=>{availability.stop();clearInterval(demoTick);clearInterval(contractTick);clearInterval(narrativeTick);clearInterval(reportBackfill);clearInterval(tick);active?.terminate();server.close(()=>process.exit())});
+process.on('SIGTERM',()=>{availability.stop();clearInterval(demoTick);clearInterval(contractTick);clearInterval(webhookTick);clearInterval(narrativeTick);clearInterval(reportBackfill);clearInterval(tick);active?.terminate();server.close(()=>process.exit())});

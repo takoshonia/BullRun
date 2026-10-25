@@ -51,7 +51,7 @@ test('actual Gringott -> consent/common AIS -> captured audit/reports -> injecte
   assert(!JSON.stringify(pack).includes('access_'));assert(!JSON.stringify(pack).includes('code_'));assert(pack.observations.some(o=>o.kind==='negative'));
   assert.equal((await call('reviewer','/api/packs/'+healthy.packId)).status,403);
   for(const type of ['quality','incompatibility','json','csv']){const report=await call('bank','/api/runs/'+healthy.id+'/export/'+type);assert.equal(report.status,200);assert(!JSON.stringify(report.data).includes('access_'));}
-  assert.equal((await call('reviewer','/api/gates','POST',{runId:healthy.id,name:'mock gate'})).data.decision,'HOLD');
+  assert.equal((await call('reviewer','/api/gates','POST',{runId:healthy.id,name:'private bank audit'})).status,400,'NBG cannot evaluate a private bank-owned audit under the current visibility policy');
   assert.equal((await call('standards','/api/rules/XS2A-JSON/review','POST',{approve:true,confirm:true,note:'Test-only review of JSON on the explicitly selected legacy payment-account interface.'})).status,200);
   const approved=await audit();assert(approved.results.some(f=>f.ruleId==='XS2A-JSON'&&f.verdict==='PASS'&&f.sourceHash&&f.section));
   await faults({repeatPagination:true});const pagination=await audit();assert(pagination.results.some(r=>r.id==='GRINGOTT-PAGINATION-acc_1001'&&r.verdict==='FAIL'));

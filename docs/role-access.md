@@ -43,3 +43,5 @@ Bank-facing demo pages use configured synthetic mock banks. Account provisioning
 Operator also has Mock comparison and time-limited synthetic fault controls when an administration key is configured. NBG cannot activate faults. See mock-quality-comparison.md for the measurement and recovery limits.
 
 API contract changes: NBG and Operator can inspect schema history and propose mappings. NBG alone approves baselines and semantic meaning. Operator alone tests, activates, rolls back and controls the synthetic overlay. TPP and bank roles cannot use the review API. Existing role access remains unchanged. TPP batch operations use separate owner-scoped bank consents.
+
+Signed mock contract webhook history is visible to Operator/NBG. Only Operator can trigger configured mock publisher controls. TPP/bank users cannot access review/control routes. The machine-to-machine webhook uses a distinct per-bank signature, timestamp and event identity, never a browser session or a bank user password.
