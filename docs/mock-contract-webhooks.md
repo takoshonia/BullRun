@@ -68,3 +68,9 @@ The launcher requires the upstream mock sources/services already used by the pro
 Tests cover real local HTTP delivery, automatic scans without a second Scan action, tampered/stale/forged payloads, cross-bank spoofing, duplicate/conflicting IDs, restart recovery, publisher retry identity, exact-value adapter remediation, role boundaries and unchanged CSRF protections. An older Gringott test expectation was aligned with the bank-audit visibility policy already present in main; no production access policy was relaxed.
 
 No real bank is connected. Delivery is near-real-time, not guaranteed instantaneous. A real integration requires the bank to support a suitable event feed, register GeoBridge, agree its authentication/retry protocol and provide a test environment. That cannot be enabled unilaterally by GeoBridge. Future outgoing notifications to NBG remain separate and are still not delivered by this feature.
+
+## Private container deployment
+
+`MOCK_PUSH_HOST=0.0.0.0` supports a publisher bound inside a private Docker network with no published host port. Keep its state and keys in a private persistent volume. Use HTTPS for its fixed callback URL. `MOCK_PUSH_UPSTREAM_ADMIN_KEY_FILE` optionally preserves the existing Operator mock fault/availability controls: only the three known administration paths are proxied, only with their separate valid BOG admin key; other admin paths remain blocked. This does not expose a new public administration endpoint.
+
+See [automatic-mapping-notifications.md](automatic-mapping-notifications.md) for inbox delivery and opt-in exact-schema automation.
