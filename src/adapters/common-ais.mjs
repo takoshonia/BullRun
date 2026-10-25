@@ -6,7 +6,7 @@ const error=(status,message)=>Object.assign(Error(message),{status});
 
 // Ephemeral, owner-scoped mock credentials. Restart requires fresh simulated consent.
 // No token/code is persisted in SQLite or returned to a browser.
-export function createCommonAIS({processResponse=(cid,op,body)=>({body,proof:null})}={}){
+export function createCommonAIS({processResponse=(cid,op,body)=>({body,proof:null}),recordOutcome=()=>{}}={}){
  const sessions=new Map(),pendingOwners=new Map();let pending=0;
  const prune=()=>{for(const [id,s]of sessions)if(s.expiresAt<=Date.now())sessions.delete(id);};
  function adapter(id){if(!adapterTargets().some(t=>t.id===id))throw error(503,'BANK_NOT_CONNECTED');return createAdapter(id,{signal:AbortSignal.timeout(15000)});}
@@ -25,6 +25,7 @@ export function createCommonAIS({processResponse=(cid,op,body)=>({body,proof:nul
   },
   async revoke(user,connection,id){const s=session(user,connection,id);sessions.delete(id);await adapter(connection).revokeConsent(s);return {revoked:true,synthetic:true};},
   async read(user,connection,id,operation,account){
+   try{
    const s=session(user,connection,id),a=adapter(connection);
    if(account&&!s.accounts.has(account))throw error(403,'Account not included in this consent');
    const current=await a.consentStatus(s);
@@ -35,7 +36,9 @@ export function createCommonAIS({processResponse=(cid,op,body)=>({body,proof:nul
    else if(operation==='transactions')data=(await a.listTransactions(s,account)).data;
    else throw error(404,'Unsupported common operation');
    session(user,connection,id); // Reject a response if local revocation raced the upstream read.
+   if(operation==='balances')recordOutcome(connection,proof);
    return {data,proof,meta:{synthetic:true,evidenceMode:'mock_http',connectionId:connection,adapterVersion:a.version,notice:'Synthetic API data; not an official bank observation.'}};
+   }catch(e){if(operation==='balances')recordOutcome(connection,null);throw e;}
   },
   clearOwner(owner){for(const [id,s]of sessions)if(s.owner===owner)sessions.delete(id);}
  };

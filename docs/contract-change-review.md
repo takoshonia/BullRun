@@ -57,6 +57,18 @@ Schema changes and response mismatches write deduplicated `contract_notification
 
 `GEOBRIDGE_CONTRACT_SCAN_MINUTES=1440` is the default (range 5-10080 minutes). A lightweight minute timer checks persisted per-bank last-attempt timestamps; it only fetches OpenAPI when due. Manual scans update the same timestamp. Restarting does not reset the daily schedule. Failed fetches retain status and are retried on the configured interval, without becoming schema changes.
 
-Availability monitoring remains independent. Existing-request structural validation performs no additional bank fetch. The internal scheduler `notify(connectionId)` can trigger an immediate, coalesced scan after a future bank-specific integration verifies a webhook signature, freshness and bank identity. No public webhook endpoint or connected bank feed is provided or claimed in this version.
+Availability monitoring remains independent. Existing-request structural validation performs no additional bank fetch. The scheduler can trigger an immediate scan after a verified bank notification. An optional signed mock-bank receiver and separate publisher are now available; see [mock-contract-webhooks.md](mock-contract-webhooks.md). No real-bank feed is connected or claimed. The daily scan remains the fallback.
 
 Bank cards show mapping proposal actions only when current schema changes or fresh response-mismatch evidence identify a supported amount alias. Historical changes alone do not enable these actions. Rollback appears only for an active custom mapping. An unchanged bank uses a compact default-adapter status.
+
+## Bank resolution alerts
+
+Audit history, saved-report lists and finding details display a separate current resolution status. Stored audit verdicts, severity and saved HTML remain immutable.
+
+- **Handled by adapter (yellow):** the exact recorded positive HTTP 200 balance response fails the original adapter but replays through the supported exact-decimal alias; a current candidate has its latest passing test and NBG review, Operator activation, matching schema/baseline and a successful consent-scoped TPP balance read after activation.
+- **Review pending (neutral):** a supported exact copy can structurally map the recorded response, but reviewed activation and runtime recovery have not all been established. Structural feasibility alone does not establish meaning.
+- **Bank action required (red):** no verified supported repair covers the finding. Security, transport failures, missing/ambiguous amounts, invalid currency and unrelated operations are never relabelled as handled by the balance mapper.
+
+A run can show red and yellow together for different failures. Rollback, schema/baseline changes, failed retests or a subsequent unsuccessful TPP balance request remove the handled status. The latest runtime marker stores only bank/mapping/schema/baseline IDs, status and timestamp, never credentials or response values. A successful request is evidence for that operation, not availability or a guarantee for all future requests; its verification time is shown. Reload the workspace or reopen the audit to refresh resolution status. Existing saved reports preserve their original historical evidence.
+
+Incoming signed bank events and bank-visible resolution statuses do not add email delivery. Unrecognized adapter repairs remain manual; runtime AI and automatic mapping activation are not introduced.
