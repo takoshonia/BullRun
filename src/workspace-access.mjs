@@ -1,4 +1,5 @@
 import {auditVisible,sharedBankReview,auditActorRole} from './audit-visibility.mjs';
+import {bankAlerts} from './bank-alerts.mjs';
 export function categorySummary(results){
  if(!Array.isArray(results))return null;
  return Object.fromEntries(['compatibility','reliability','latency','security'].map(layer=>{
@@ -8,6 +9,7 @@ export function categorySummary(results){
 }
 // Assemble the minimum workspace payload for each role; hiding navigation is not authorization.
 export function workspacePayload(user,{records,profiles,sources,aiConfigured,canSee,reportSummaries=[]}){
+ const alertCache=new Map(),alertRecords=kind=>{if(!alertCache.has(kind))alertCache.set(kind,records(kind));return alertCache.get(kind)};
  const users=records('users'),visibleRuns=records('runs').filter(r=>canSee(user,r.tenant)&&auditVisible(user,r,users)),visibleIds=new Set(visibleRuns.map(r=>r.id));
  const own=kind=>records(kind).filter(x=>canSee(user,x.tenant));
  const manager=['operator','bank'].includes(user.role),standards=['operator','reviewer'].includes(user.role),diagnostic=['operator','bank','reviewer'].includes(user.role);
@@ -21,7 +23,7 @@ export function workspacePayload(user,{records,profiles,sources,aiConfigured,can
   connections,
   savedReports:diagnostic?reportSummaries.filter(r=>visibleIds.has(r.runId)&&r.kind!=='platform'):[],
   catalog:['tpp','operator'].includes(user.role)?records('connections').filter(c=>user.role==='operator'||c.published===true||c.synthetic&&c.status==='mock_configured').map(c=>({id:c.id,name:c.name,status:c.status,profile:c.profile,capabilities:c.capabilities})):[],
-  runs:diagnostic?visibleRuns.filter(x=>x.kind!=='platform').map(({results,...r})=>({...r,actorRole:auditActorRole(r,users),bankReview:user.role==='bank'&&sharedBankReview({...r,results},users),categorySummary:categorySummary(results)})):[],
+  runs:diagnostic?visibleRuns.filter(x=>x.kind!=='platform').map(({results,...r})=>({...r,alerts:bankAlerts({...r,results},alertRecords),actorRole:auditActorRole(r,users),bankReview:user.role==='bank'&&sharedBankReview({...r,results},users),categorySummary:categorySummary(results)})):[],
   diagnosticsRuns:user.role==='operator'?own('runs').filter(x=>x.kind==='platform').slice(0,100).map(({results,...r})=>r):[],
   packs:(user.role==='reviewer'?own('packs'):packs).map(({observations,samples,...x})=>({...x,observationCount:observations.length,sampleCount:samples.length})),
   profiles:['operator','reviewer'].includes(user.role)?profiles:user.role==='bank'?profiles.filter(x=>x.id!=='platform'):profiles.filter(x=>selectedProfiles.has(x.id)),

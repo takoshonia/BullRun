@@ -1,5 +1,6 @@
 import {createContractWebhooks,webhookConfiguration,webhookBody} from './contract-webhooks.mjs';
 import {auditVisible,auditActorRole,sharedBankReview} from './audit-visibility.mjs';
+import {bankAlerts} from './bank-alerts.mjs';
 import {createContractScheduler,contractIntervalMinutes} from './contract-scheduler.mjs';
 import {createContractReview} from './contract-review.mjs';
 import {createMockDemo} from './mock-demo.mjs';
@@ -29,7 +30,7 @@ import {createAvailability,parseTargets,requestJSON} from './availability.mjs';
 import {seedAdapterConnections,adapterTargets} from './adapters/registry.mjs';
 import {createCommonAIS} from './adapters/common-ais.mjs';
 const contractReview=createContractReview({all,get,put,event,router:()=>providerRouter});
-const commonAIS=createCommonAIS({processResponse:contractReview.process});
+const commonAIS=createCommonAIS({processResponse:contractReview.process,recordOutcome:(cid,proof)=>{if(!proof){put('contract_runtime',{id:cid,status:'failed',at:new Date().toISOString()});return}if(proof?.mappingVersion&&proof.mappingVersion!=='built-in-adapter')put('contract_runtime',{id:cid,status:'success',candidateId:proof.mappingVersion,snapshotId:get('contract_scan_status',cid)?.snapshotId,baselineId:get('contract_baselines',cid)?.snapshotId,at:new Date().toISOString()})}});
 const providerRouter=createProviderRouter({db});
 const contractScanMinutes=contractIntervalMinutes();
 const contractScheduler=createContractScheduler({targets:adapterTargets,get,scan:contractReview.scan,minutes:contractScanMinutes});
@@ -170,7 +171,7 @@ const server=http.createServer(async(req,res)=>{
  const runMatch=p.match(/^\/api\/runs\/([^/]+)(?:\/(.*))?$/);
  if(runMatch){const r=get('runs',runMatch[1]);if(!runVisible(u,r))throw error(404,'Run not found');const action=runMatch[2];
  if(action==='reports'){requireRole(u,'operator','bank','reviewer');if(method==='GET')return send(res,200,{reports:savedReports.history(r.id)});if(method==='POST'){requireRole(u,'operator','bank','reviewer');if(r.status!=='completed')throw error(409,'Audit is not completed');const b=await body(req);if(typeof b.reason!=='string'||b.reason.trim().length<12||b.reason.length>300)throw error(400,'Describe the reason for the new report version (12–300 characters)');if(typeof b.requestId!=='string'||!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(b.requestId))throw error(400,'A unique request ID is required');const report=savedReports.createRevision(r,{reason:b.reason.trim(),requestId:b.requestId,createdBy:u.id});return send(res,201,report)}}
- if(!action&&method==='GET')return send(res,200,{...r,actorRole:auditActorRole(r,all('users')),bankReview:u.role==='bank'&&sharedBankReview(r,all('users'))});
+ if(!action&&method==='GET')return send(res,200,{...r,alerts:bankAlerts(r,all),actorRole:auditActorRole(r,all('users')),bankReview:u.role==='bank'&&sharedBankReview(r,all('users'))});
  if(action==='stop'&&method==='POST'){requireRole(u,'operator','bank','reviewer');if(!['running','queued'].includes(r.status))throw error(409,'Run is already finished');if(active?.runId===r.id){const w=active;active=null;await w.terminate()}put('runs',{...r,status:'cancelled',finishedAt:new Date().toISOString()});event(u.id,'run_cancelled',r.id);return send(res,200,{ok:true})}
  if(action?.startsWith('export/')&&method==='GET'){const type=action.split('/')[1];const pack=r.packId?get('packs',r.packId):null;if(r.status!=='completed')throw error(409,'Run has not completed');if(type==='full'){requireRole(u,'operator','bank','reviewer');const report=savedReports.latest(r.id);if(!report)throw error(409,'Saved report is being prepared. Try again shortly.');return sendSavedReport(res,savedReports.get(report.id))}
  if(type==='json')return send(res,200,r,'application/json; charset=utf-8',{'Content-Disposition':`attachment; filename="geobridge-${r.id}.json"`});
