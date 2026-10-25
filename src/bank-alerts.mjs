@@ -2,14 +2,16 @@ import {copyAmount,contractHash} from './contract-review.mjs';
 import {mapAdapter} from './adapters/registry.mjs';
 
 // Operational disposition is separate from immutable audit verdict/severity.
-export function bankAlerts(run,records){
- const cid=run.connectionId,connection=records('connections').find(x=>x.id===cid);
- const scan=records('contract_scan_status').find(x=>x.id===cid);
- const baseline=records('contract_baselines').find(x=>x.id===cid);
- const pointer=records('contract_active').find(x=>x.id===cid);
- const runtime=records('contract_runtime').find(x=>x.id===cid);
- const pack=records('packs').find(x=>x.id===run.packId);
- return (run.results||[]).filter(f=>f.verdict==='FAIL').map(f=>{
+export function bankAlerts(run,records,getRecord){
+ const failures=(run.results||[]).filter(f=>f.verdict==='FAIL');if(!failures.length)return [];
+ const lookup=(kind,id)=>id?(getRecord?getRecord(kind,id):records(kind).find(x=>x.id===id)):null;
+ const cid=run.connectionId,connection=lookup('connections',cid);
+ const scan=lookup('contract_scan_status',cid);
+ const baseline=lookup('contract_baselines',cid);
+ const pointer=lookup('contract_active',cid);
+ const runtime=lookup('contract_runtime',cid);
+ const pack=failures.some(f=>f.layer==='compatibility'&&/balance/i.test(f.id+' '+f.title))?lookup('packs',run.packId):null;
+ return failures.map(f=>{
   const base={findingId:f.id,status:'bank_action_required',label:'Bank action required',reason:'No verified adapter resolution covers this finding. Review the original evidence; the bank must resolve the demonstrated defect.'};
   // Only the supported balance mapper can resolve these specific mapping failures.
   const observation=pack?.observations?.[f.observationIndex];
