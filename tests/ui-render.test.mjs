@@ -24,9 +24,9 @@ test('all workspace views render without template exceptions; unsafe names are e
  ui.state.availability=[{id:'gringott',name:'<script>bad</script>',canSwitch:true,report:{enabled:true,currentStatus:'down',checks:4,successes:2,successfulChecksPercent:50,estimatedUptimePercent:40,coveragePercent:75,estimatedDownMs:9000,unknownMs:3000,lastCheck:{at:Date.now()},intervalSeconds:5,timeoutSeconds:1}}];
  for(const page of ['monitor','reports']){ui.state.page=page;ui.render();const html=element('#app').innerHTML;assert(html.includes('availability-report'));assert(html.includes('API OFF (timeout)'));assert(html.includes('50.00%'));assert(!html.includes('<script>bad'))}
  ui.state.workspace.catalog=[{id:'mock-gringott',name:'Gringott <script>bad</script>',status:'mock_configured',capabilities:{accounts:'mock_supported'}}];
- ui.state.page='explorer';ui.render();assert(element('#app').innerHTML.includes('Grant simulated consent'));
+ ui.state.page='explorer';ui.render();assert(element('#app').innerHTML.includes('Grant selected mock consents'));
  ui.state.gringott={connection:'mock-gringott',consentId:'private-reference',expiresAt:new Date().toISOString(),accounts:[{accountId:'<script>bad</script>',currency:'GEL'}]};
- ui.render();assert(element('#app').innerHTML.includes('All transaction pages'));assert(!element('#app').innerHTML.includes('<script>bad'));
+ ui.render();assert(element('#app').innerHTML.includes('Transactions'));assert(!element('#app').innerHTML.includes('<script>bad'));
  ui.state.workspace.catalog.push({id:'mock-tbc',name:'TBC independent mock',status:'mock_configured',capabilities:{accounts:'mock_supported'}});
  ui.state.gringott=null;ui.render();assert(element('#app').innerHTML.includes('TBC independent mock'));assert(element('#app').innerHTML.includes('value="mock-tbc"'));
  ui.state.workspace.catalog.push({id:'mock-bog',name:'BOG independent mock',status:'mock_configured',capabilities:{accounts:'mock_supported'}});
