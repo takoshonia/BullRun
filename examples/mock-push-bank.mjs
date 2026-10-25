@@ -8,7 +8,7 @@ export function balanceSchemaChange(document,enabled=true){
  for(const [name,item] of Object.entries(doc.paths||{}))if(/\/accounts\/\{[^}]+\}\/balances$/.test(name)){const response=item.get?.responses?.['200'];const schema=response?.content?.['application/json']?.schema;if(schema)response.content['application/json'].schema=expand(schema)}
  return doc;
 }
-export function createMockPushBank({upstreamOrigin,callbackUrl,connectionId='mock-bog',secret,adminKey,stateFile,clock=Date.now,fetchImpl=fetch}){
+export function createMockPushBank({upstreamOrigin,callbackUrl,connectionId='mock-bog',secret,adminKey,upstreamAdminKey='',stateFile,clock=Date.now,fetchImpl=fetch}){
  const upstream=new URL(upstreamOrigin),callback=new URL(callbackUrl);if(!['http:','https:'].includes(upstream.protocol)||upstream.pathname!=='/'||upstream.username||upstream.password||upstream.search||upstream.hash)throw Error('Fixed upstream origin required');
  if(!['http:','https:'].includes(callback.protocol)||callback.username||callback.password||callback.hash||callback.search||callback.protocol==='http:'&&!['127.0.0.1','localhost','[::1]'].includes(callback.hostname))throw Error('HTTPS webhook URL required except on loopback');
  if(Buffer.byteLength(secret||'')<32||Buffer.byteLength(adminKey||'')<32||safeEqual(secret,adminKey))throw Error('Separate 32-byte signing and administration keys required');
@@ -32,7 +32,7 @@ export function createMockPushBank({upstreamOrigin,callbackUrl,connectionId='moc
     if(state.events.filter(e=>e.status==='pending').length>=50)return send(429,{error:'Publisher queue full'});
     state.enabled=value.enabled;state.sequence++;const entry={eventId:crypto.randomUUID(),status:'pending',attempts:0,nextAttemptAt:clock(),createdAt:new Date(clock()).toISOString(),payload:{type:'api.contract.changed',connectionId,revision:(state.enabled?'sum-':'amount-')+state.sequence,synthetic:true}};state.events.push(entry);save();send(202,{changed:true,eventId:entry.eventId,enabled:state.enabled,synthetic:true,notice:'Mock bank changed its response/schema and queued a signed webhook.'});void deliver().catch(()=>{});return;
    }
-   if(incoming.pathname.startsWith('/api/admin/'))return send(403,{error:'Upstream administration not exposed'});
+   if(incoming.pathname.startsWith('/api/admin/')&&(!upstreamAdminKey||!safeEqual(req.headers['x-bog-mock-admin-key'],upstreamAdminKey)||!['/api/admin/state','/api/admin/faults','/api/admin/availability'].includes(incoming.pathname)||!['GET','POST'].includes(req.method)))return send(403,{error:'Upstream administration requires its separate private key'});
    const chunks=[];let size=0;for await(const chunk of req){size+=chunk.length;if(size>1000000)return send(413,{error:'Request too large'});chunks.push(chunk)}
    const url=new URL(req.url,upstream);if(url.origin!==upstream.origin)return send(400,{error:'Fixed origin required'});
    const headers={...req.headers,'accept-encoding':'identity'};delete headers['x-mock-push-admin-key'];delete headers.connection;delete headers['transfer-encoding'];headers['content-length']=size;
@@ -45,6 +45,6 @@ export function createMockPushBank({upstreamOrigin,callbackUrl,connectionId='moc
  return {server,deliver,view:()=>structuredClone(state),close:async()=>{clearInterval(timer);server.closeAllConnections();if(server.listening)await new Promise(r=>server.close(r))}};
 }
 if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href){
- const app=createMockPushBank({upstreamOrigin:process.env.MOCK_PUSH_UPSTREAM,callbackUrl:process.env.MOCK_PUSH_CALLBACK,connectionId:process.env.MOCK_PUSH_CONNECTION_ID||'mock-bog',secret:fs.readFileSync(process.env.MOCK_PUSH_SECRET_FILE,'utf8').trim(),adminKey:fs.readFileSync(process.env.MOCK_PUSH_ADMIN_KEY_FILE,'utf8').trim(),stateFile:process.env.MOCK_PUSH_STATE_FILE});
- app.server.listen(Number(process.env.PORT||4185),'127.0.0.1',()=>console.log('Synthetic bank push publisher running on loopback; real bank webhook support is not implied.'));process.on('SIGTERM',()=>app.close().then(()=>process.exit()));
+ const app=createMockPushBank({upstreamOrigin:process.env.MOCK_PUSH_UPSTREAM,callbackUrl:process.env.MOCK_PUSH_CALLBACK,connectionId:process.env.MOCK_PUSH_CONNECTION_ID||'mock-bog',secret:fs.readFileSync(process.env.MOCK_PUSH_SECRET_FILE,'utf8').trim(),adminKey:fs.readFileSync(process.env.MOCK_PUSH_ADMIN_KEY_FILE,'utf8').trim(),upstreamAdminKey:process.env.MOCK_PUSH_UPSTREAM_ADMIN_KEY_FILE?fs.readFileSync(process.env.MOCK_PUSH_UPSTREAM_ADMIN_KEY_FILE,'utf8').trim():'',stateFile:process.env.MOCK_PUSH_STATE_FILE});
+ app.server.listen(Number(process.env.PORT||4185),process.env.MOCK_PUSH_HOST==='0.0.0.0'?'0.0.0.0':'127.0.0.1',()=>console.log('Synthetic bank push publisher running on the configured private interface; real bank webhook support is not implied.'));process.on('SIGTERM',()=>app.close().then(()=>process.exit()));
 }

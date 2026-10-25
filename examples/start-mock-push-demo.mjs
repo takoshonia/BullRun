@@ -1,7 +1,7 @@
 // Local-only launcher. Existing BOG and Gringott mocks must already be running.
 import fs from 'node:fs';import path from 'node:path';import crypto from 'node:crypto';import {spawn} from 'node:child_process';
 import {createMockPushBank} from './mock-push-bank.mjs';
-const root=path.resolve(import.meta.dirname,'..'),dir=path.join(root,'data','push-preview');fs.mkdirSync(dir,{recursive:true});
+const root=path.resolve(import.meta.dirname,'..'),dir=process.env.PUSH_DEMO_DATA_DIR||path.join(root,'data','push-preview');fs.mkdirSync(dir,{recursive:true});
 function key(name){const file=path.join(dir,name);if(!fs.existsSync(file))fs.writeFileSync(file,crypto.randomBytes(32).toString('hex'),{mode:0o600});return {file,value:fs.readFileSync(file,'utf8').trim()}}
 const signing=key('webhook-signing.key'),admin=key('publisher-admin.key');
 const port=Number(process.env.PUSH_DEMO_PORT||4320),bankPort=Number(process.env.PUSH_BANK_PORT||4185),base='http://127.0.0.1:'+port;

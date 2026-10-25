@@ -1,6 +1,8 @@
 import {createContractWebhooks,webhookConfiguration,webhookBody} from './contract-webhooks.mjs';
 import {auditVisible,auditActorRole,sharedBankReview} from './audit-visibility.mjs';
 import {bankAlerts} from './bank-alerts.mjs';
+import {createNotifications} from './notifications.mjs';
+import {createMappingAutomation} from './mapping-automation.mjs';
 import {createContractScheduler,contractIntervalMinutes} from './contract-scheduler.mjs';
 import {createContractReview} from './contract-review.mjs';
 import {createMockDemo} from './mock-demo.mjs';
@@ -29,7 +31,12 @@ import {workspacePayload} from './workspace-access.mjs';
 import {createAvailability,parseTargets,requestJSON} from './availability.mjs';
 import {seedAdapterConnections,adapterTargets} from './adapters/registry.mjs';
 import {createCommonAIS} from './adapters/common-ais.mjs';
-const contractReview=createContractReview({all,get,put,event,router:()=>providerRouter});
+const notifications=createNotifications({all,get,put});
+if(!get('notification_cursor','events'))put('notification_cursor',{id:'events',lastId:db.prepare('SELECT COALESCE(MAX(id),0) AS id FROM events').get().id});
+function contractEvent(actor,action,target,detail={}){const result=event(actor,action,target,detail);try{notifications.deliver(result.lastInsertRowid,action,target,detail)}catch{console.error('Notification delivery pending event replay')}return result;}
+const contractReview=createContractReview({all,get,put,event:contractEvent,router:()=>providerRouter});
+const mappingAutomation=createMappingAutomation({all,get,put,event:contractEvent,review:contractReview});
+const automaticTick=setInterval(()=>{mappingAutomation.tick().catch(()=>console.error('Automatic mapping worker unavailable'));try{for(const row of db.prepare('SELECT id,action,target,detail FROM events WHERE id>? ORDER BY id LIMIT 100').all(get('notification_cursor','events').lastId)){notifications.deliver(row.id,row.action,row.target,JSON.parse(row.detail));put('notification_cursor',{id:'events',lastId:row.id})}notifications.tick()}catch{console.error('Notification delivery pending retry')}},1000);automaticTick.unref();
 const commonAIS=createCommonAIS({processResponse:contractReview.process,recordOutcome:(cid,proof)=>{if(!proof){put('contract_runtime',{id:cid,status:'failed',at:new Date().toISOString()});return}if(proof?.mappingVersion&&proof.mappingVersion!=='built-in-adapter')put('contract_runtime',{id:cid,status:'success',candidateId:proof.mappingVersion,snapshotId:get('contract_scan_status',cid)?.snapshotId,baselineId:get('contract_baselines',cid)?.snapshotId,at:new Date().toISOString()})}});
 const providerRouter=createProviderRouter({db});
 const contractScanMinutes=contractIntervalMinutes();
@@ -102,6 +109,15 @@ const server=http.createServer(async(req,res)=>{
  const sid=(req.headers.cookie||'').match(/(?:^|;\s*)geobridge=([^;]+)/)?.[1];const session=sid?db.prepare('SELECT * FROM sessions WHERE id=? AND expires>?').get(sha(sid),Date.now()):null;const u=session?get('users',session.user_id):null;
  if(!u||u.disabled)throw error(401,'Sign in to GeoBridge');if(req.headers['x-geobridge-account']&&req.headers['x-geobridge-account']!==JSON.stringify([u.id,u.role,u.tenant]))throw Object.assign(error(403,'The signed-in account changed in another tab. Sign in again to continue.'),{code:'SESSION_CHANGED'});if(method!=='GET'&&req.headers['x-csrf-token']!==session.csrf)throw error(403,'Request token missing or invalid');
  if(p==='/api/me')return send(res,200,{user:safeUser(u),csrf:session.csrf});
+ if(p==='/api/notifications'&&method==='GET')return send(res,200,notifications.list(u));
+ if(p==='/api/notifications/read'&&method==='POST'){const b=await body(req);return send(res,200,notifications.read(u,b.id));}
+ if(p==='/api/notifications/stream'&&method==='GET'){
+  requireRole(u,'operator','reviewer','bank');if(url.searchParams.get('account')!==JSON.stringify([u.id,u.role,u.tenant]))throw error(403,'Notification account changed');
+  let closed=false;const emit=data=>{if(!closed)res.write('data: '+JSON.stringify(data)+'\n\n')};const unsubscribe=notifications.subscribe(u,emit);
+  res.writeHead(200,{'Content-Type':'text/event-stream','Cache-Control':'no-store','Connection':'keep-alive','X-Accel-Buffering':'no'});emit(notifications.list(u));
+  const timer=setInterval(()=>{const current=get('users',u.id),valid=db.prepare('SELECT id FROM sessions WHERE id=? AND expires>?').get(session.id,Date.now());if(!valid||!current||current.disabled||current.role!==u.role||current.tenant!==u.tenant){res.end();return}res.write(': heartbeat\n\n')},15000);timer.unref();
+  res.on('close',()=>{closed=true;clearInterval(timer);unsubscribe()});return;
+ }
  if(p==='/api/availability'||p.startsWith('/api/availability/')){
   requireRole(u,'operator','bank','reviewer');
   const targets=availability.targets().filter(t=>authorized(u,t.tenant));
@@ -181,7 +197,7 @@ const server=http.createServer(async(req,res)=>{
  }
  if(p.match(/^\/api\/packs\/[^/]+$/)&&method==='GET'){requireRole(u,'bank','operator');const pack=get('packs',p.split('/')[3]);if(!scope(u,pack))throw error(404,'Evidence not found');return send(res,200,pack)}
  if(p.match(/^\/api\/contract-review\/snapshots\/[a-f0-9]+$/)&&method==='GET'){requireRole(u,'operator','reviewer');const snapshot=get('contract_snapshots',p.split('/')[4]);if(!snapshot)throw error(404,'Schema snapshot not found');return send(res,200,snapshot.document)}
- if(p==='/api/contract-review'&&method==='GET'){requireRole(u,'operator','reviewer');return send(res,200,{...contractReview.view(),push:{...contractWebhooks.view(),demoControls:contractWebhookConfig.filter(c=>c.controlKey).map(c=>c.connectionId)},monitoring:{schemaIntervalMinutes:contractScanMinutes,availability:'separate_monitor',responseValidation:'during_existing_requests',bankWebhookConnected:contractWebhookConfig.length>0}})}
+ if(p==='/api/contract-review'&&method==='GET'){requireRole(u,'operator','reviewer');return send(res,200,{...contractReview.view(),notificationNotice:'In-app notifications are delivered to NBG and the affected bank. Email is not configured.',automation:mappingAutomation.view(),push:{...contractWebhooks.view(),demoControls:contractWebhookConfig.filter(c=>c.controlKey).map(c=>c.connectionId)},monitoring:{schemaIntervalMinutes:contractScanMinutes,availability:'separate_monitor',responseValidation:'during_existing_requests',bankWebhookConnected:contractWebhookConfig.length>0}})}
  if(p==='/api/contract-review/action'&&method==='POST'){
   requireRole(u,'operator','reviewer');const b=await body(req);if(!b||typeof b!=='object'||Array.isArray(b))throw error(400,'Contract action object required');let result;
   if(b.action==='push-demo'){
@@ -194,7 +210,10 @@ const server=http.createServer(async(req,res)=>{
   else if(b.action==='test'){requireRole(u,'operator');result=await contractReview.test(b.id,u.id)}
   else if(b.action==='approve'){requireRole(u,'reviewer');result=contractReview.approve(b.id,u.id,b.note)}
   else if(b.action==='activate'){requireRole(u,'operator');result=contractReview.activate(b.id,u.id)}
-  else if(b.action==='rollback'){requireRole(u,'operator');result=contractReview.rollback(b.connectionId,u.id)}
+  else if(b.action==='policy-approve'){requireRole(u,'reviewer');result=mappingAutomation.approve(b.id,u.id,b.note)}
+  else if(b.action==='policy-enable'){requireRole(u,'operator');result=mappingAutomation.enable(b.id,u.id)}
+  else if(b.action==='policy-disable'){requireRole(u,'operator','reviewer');result=mappingAutomation.disable(b.id,u.id)}
+  else if(b.action==='rollback'){requireRole(u,'operator');for(const p of all('contract_policies').filter(x=>x.connectionId===b.connectionId&&x.status==='enabled'))mappingAutomation.disable(p.id,u.id);result=contractReview.rollback(b.connectionId,u.id)}
   else throw error(400,'Unknown contract action');return send(res,200,result||{ok:true});
  }
  if(p==='/bridge/v1/batch'&&method==='POST'){
@@ -234,4 +253,4 @@ const server=http.createServer(async(req,res)=>{
 });
 server.on('error',e=>{console.error(e.code==='EADDRINUSE'?'GeoBridge port is already in use. Close the previous instance or choose another PORT.':e.message);process.exitCode=1;clearInterval(tick)});
 server.listen(PORT,HOST,()=>{console.log(`GeoBridge is running at ${origin}`);console.log('Demo credentials: '+path.join(dataDir,'demo-credentials.json'));console.log(adapterTargets().length?'Synthetic AIS adapters configured; no real bank connected.':'No bank adapters configured.');});
-process.on('SIGTERM',()=>{availability.stop();clearInterval(demoTick);clearInterval(contractTick);clearInterval(webhookTick);clearInterval(narrativeTick);clearInterval(reportBackfill);clearInterval(tick);active?.terminate();server.close(()=>process.exit())});
+process.on('SIGTERM',()=>{availability.stop();clearInterval(automaticTick);clearInterval(demoTick);clearInterval(contractTick);clearInterval(webhookTick);clearInterval(narrativeTick);clearInterval(reportBackfill);clearInterval(tick);active?.terminate();server.close(()=>process.exit())});
