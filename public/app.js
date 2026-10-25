@@ -372,11 +372,14 @@ async function loadEvents(){const rows=await api('/api/events');const el=documen
 
 async function showRun(id){
  if(state.page==='detail'&&state.run?.id===id&&state.run.loading)return;
- const identity=state.user&&accountIdentity(state.user),token=++routeRestoreToken,current=()=>token===routeRestoreToken&&state.user&&accountIdentity(state.user)===identity;
+ const identity=state.user&&accountIdentity(state.user);let token;const current=()=>token===routeRestoreToken&&state.page==='detail'&&state.run?.id===id&&state.user&&accountIdentity(state.user)===identity;
  const summary=[...(state.workspace?.runs||[]),...(state.workspace?.diagnosticsRuns||[])].find(r=>r.id===id),preview={id,name:summary?.name||'Audit details',kind:summary?.kind||'bank',loading:true};
  restoringRoute=false;if(dialog.open)dialog.close();state.run=preview;state.page='detail';state.filter='all';state.menuOpen=false;render();globalThis.window?.scrollTo({top:0,left:0,behavior:'instant'});
- try{const run=await api('/api/runs/'+encodeURIComponent(id),{singleRead:true});if(!current())return;state.run=run;render();}
+ // Rendering records the new history entry; bind the request afterwards.
+ token=++routeRestoreToken;let loadTimer;
+ try{const run=await Promise.race([api('/api/runs/'+encodeURIComponent(id),{singleRead:true}),new Promise((_,reject)=>{loadTimer=setTimeout(()=>reject(Error('Loading this audit took too long. Please try again.')),15000)})]);if(!current())return;state.run=run;render();}
  catch(error){if(!current())return;state.run={...preview,loading:false,loadError:error.message};render();}
+ finally{clearTimeout(loadTimer)}
 }
 async function startRun(body){const identity=state.user&&accountIdentity(state.user),r=await api(body.kind==='platform'?'/api/diagnostics':'/api/runs',{method:'POST',body});if(!state.user||accountIdentity(state.user)!==identity)return;dialog.close();state.run=r;state.page='detail';state.filter='all';state.menuOpen=false;state.auditPollError=false;if(state.workspace){const key=r.kind==='platform'?'diagnosticsRuns':'runs';state.workspace[key]=[r,...(state.workspace[key]||[]).filter(x=>x.id!==r.id)];}render();globalThis.window?.scrollTo({top:0,left:0,behavior:'instant'});}
 function bankAuditOptions(includeBenchmark,minRate=95,p95=500){if(!includeBenchmark)return {qualitySuite:false};const rate=Number(minRate),latency=Number(p95);if(!Number.isFinite(rate)||rate<90||rate>100)throw Error('Minimum valid responses must be between 90% and 100%.');if(!Number.isFinite(latency)||latency<50||latency>10000)throw Error('Maximum p95 must be between 50 and 10000 ms.');return {qualitySuite:true,policy:{minSuccessRate:rate/100,p95Ms:latency}};}
