@@ -482,3 +482,30 @@
 .contract-history>summary,.contract-technical>summary{cursor:pointer;font-weight:600;}.contract-history[open]>summary,.contract-technical[open]>summary{margin-bottom:16px}.contract-policy-heading{display:flex;align-items:center;justify-content:space-between;gap:16px}.contract-policy-heading h3{margin:0}.contract-mapping-path,.contract-diff .mono{overflow-wrap:anywhere}.contract-history .contract-diff{margin:12px 0}.contract-technical pre{max-height:320px;overflow:auto}
 
 .contract-schema-version{padding:14px 0;border-bottom:1px solid var(--line,#e2e7e7)}
+
+/* Compact two-row phone header: navigation above, account and actions below. */
+.notification-bell{display:none}
+@media(max-width:720px){
+ .workspace-shell{--header-height:116px}
+ .workspace-shell>.topbar,.workspace-shell.menu-open>.topbar{height:116px;min-height:116px;padding:10px 14px;display:grid;grid-template-columns:40px minmax(0,1fr);grid-template-rows:44px 44px;gap:8px 10px;align-items:center}
+ .workspace-shell .topbar::before{display:none}
+ .workspace-shell>.topbar>.menu-toggle,.workspace-shell.menu-open>.topbar>.menu-toggle{position:static;grid-column:1;grid-row:1;width:40px;height:44px;margin:0;transform:none}
+ .workspace-shell>.topbar>.brand-home,.workspace-shell.menu-open>.topbar>.brand-home{position:static;grid-column:2;grid-row:1;transform:none;font-size:23px;height:auto;min-width:0;gap:10px;padding:0;justify-self:start}
+ .workspace-shell>.topbar>.brand-home small{font-size:7px;letter-spacing:1px;margin-top:4px}
+ .workspace-shell>.topbar>.brand-home .brand-logo{width:28px;height:32px}
+ .workspace-shell>.topbar>.buttons{grid-column:1/-1;grid-row:2;display:flex;flex-wrap:nowrap;gap:10px;width:100%;max-width:none;min-width:0;overflow:visible;margin:0}
+ .workspace-shell>.topbar>.buttons>.badge{display:none}
+ .workspace-shell .topbar .notification-button{display:inline-flex;align-items:center;justify-content:center;gap:4px;flex:0 0 auto;min-height:44px;min-width:54px;padding:8px;border-radius:10px}
+ .notification-button .notification-bell{display:block;width:20px;height:20px}
+ .notification-button .notification-label{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+ .notification-button #notification-count{margin-left:0;font-size:12px}
+ .workspace-shell .topbar .userbox{display:flex;flex:1;min-width:0;gap:0;margin:0}
+ .workspace-shell .topbar .userbox>.avatar{display:none}
+ .workspace-shell .topbar .userbox>div:last-child{display:block;min-width:0;white-space:normal}
+ .workspace-shell .topbar .userbox strong{display:block;font-size:12px;line-height:1.3;overflow-wrap:anywhere}
+ .workspace-shell .topbar .userbox small{display:block;font-size:10px;line-height:1.3;margin-top:3px}
+ .workspace-shell .topbar [data-action="logout"]{flex:0 0 44px;min-width:44px;min-height:44px;padding:10px}
+ .workspace-shell .main{padding-top:116px}
+ .workspace-shell .sidebar{inset:116px auto 0 0}
+ .workspace-shell .menu-backdrop{top:116px}
+}
