@@ -1,4 +1,6 @@
 import {createDemoAccess} from './demo-access.mjs';
+import {createTbcSandbox,tbcSandboxConfig,TBC_CALLBACK,TBC_COOKIE} from './tbc-sandbox.mjs';
+import net from 'node:net';
 import {createContractWebhooks,webhookConfiguration,webhookBody} from './contract-webhooks.mjs';
 import {auditVisible,auditActorRole,sharedBankReview} from './audit-visibility.mjs';
 import {bankAlerts} from './bank-alerts.mjs';
@@ -60,6 +62,9 @@ const reportBackfill=setInterval(()=>{try{const result=savedReports.backfill(1);
 const PORT=Number(process.env.PORT||4317),HOST=process.env.GEOBRIDGE_HOST||'127.0.0.1';
 const origin=process.env.GEOBRIDGE_ORIGIN||`http://127.0.0.1:${PORT}`;
 const secure=origin.startsWith('https:');
+const tbcSandbox=createTbcSandbox({get,put,remove,all,event,origin,config:tbcSandboxConfig(),sessionValid:(sid,uid)=>!!db.prepare('SELECT id FROM sessions WHERE id=? AND user_id=? AND expires>?').get(sid,uid,Date.now())});
+const tbcCookie=(value,age)=>`${TBC_COOKIE}=${value}; Path=${TBC_CALLBACK}; HttpOnly; SameSite=Lax; Secure; Max-Age=${age}`;
+function tbcPsuIp(req){const candidate=process.env.GEOBRIDGE_TBC_TRUST_PROXY==='1'?String(req.headers['x-vercel-forwarded-for']||req.headers['x-forwarded-for']||'').split(',')[0].trim():String(req.socket.remoteAddress||'').replace(/^::ffff:/,'');if(!net.isIP(candidate))throw error(400,'A valid client IP is required for TBC');return candidate;}
 const allowedHosts=(process.env.GEOBRIDGE_ALLOWED_HOSTS||'').split(',').filter(Boolean);
 const loginAttempts=new Map();let active=null;
 const safeUser=u=>({id:u.id,name:u.name,role:u.role,tenant:u.tenant});
@@ -100,7 +105,14 @@ const server=http.createServer(async(req,res)=>{
  const url=new URL(req.url,origin),p=url.pathname,method=req.method;
  if(!['GET','POST','DELETE','PATCH'].includes(method))throw error(405,'Method not allowed');
  if(!p.startsWith('/api/')&&!p.startsWith('/bridge/')){if(method!=='GET')throw error(405,'Read-only asset');const asset=p==='/'?'index.html':p.slice(1);if(!['index.html','app.js','style.css','logo.png','logo-login.png'].includes(asset))throw error(404,'Not found');const file=path.join(root,'public',asset);return send(res,200,fs.readFileSync(file),asset.endsWith('js')?'text/javascript':asset.endsWith('css')?'text/css':asset.endsWith('png')?'image/png':'text/html')}
- if(p==='/api/health')return send(res,200,{status:'ok',version:'0.1.0',bankConnections:adapterTargets().length?'mock_only':'not_configured',realBankConnections:'not_configured'});
+ if(p==='/api/health')return send(res,200,{status:'ok',version:'0.1.0',bankConnections:adapterTargets().length?'mock_only':'not_configured',realBankConnections:tbcSandbox.enabled?'sandbox_authorization_available':'not_configured'});
+ if(p===TBC_CALLBACK&&method==='GET'){
+  res.setHeader('Set-Cookie',tbcCookie('',0));
+  if(!tbcSandbox.enabled)throw error(404,'TBC sandbox is not configured');
+  const cookie=(req.headers.cookie||'').match(/(?:^|;\s*)geobridge_tbc_oauth=([^;]+)/)?.[1];
+  try{await tbcSandbox.callback(url.searchParams,cookie);return send(res,200,'<!doctype html><meta charset="utf-8"><title>TBC sandbox connected</title><h1>TBC sandbox connected</h1><p>Authorization is stored securely on the server.</p><a href="/">Return to GeoBridge</a>','text/html; charset=utf-8')}
+  catch(e){return send(res,e.status||502,'<!doctype html><meta charset="utf-8"><title>TBC authorization incomplete</title><h1>TBC authorization was not completed</h1><p>Return to GeoBridge and start again. No unverified access was activated.</p><a href="/">Return to GeoBridge</a>','text/html; charset=utf-8')}
+ }
  const webhookMatch=p.match(/^\/api\/webhooks\/contracts\/(mock-[a-z0-9-]+)$/);
  if(webhookMatch&&method==='POST'){if(!String(req.headers['content-type']||'').startsWith('application/json'))throw error(415,'JSON webhook required');req.setTimeout(10000,()=>req.destroy());const receipt=contractWebhooks.accept(webhookMatch[1],req.headers,await webhookBody(req));send(res,202,receipt);void contractWebhooks.tick().catch(()=>console.error('Contract webhook queue unavailable'));return;}
  if(method!=='GET'&&req.headers.origin!==origin)throw error(403,'Origin check failed. Open '+origin);
@@ -116,6 +128,14 @@ const server=http.createServer(async(req,res)=>{
  const sid=(req.headers.cookie||'').match(/(?:^|;\s*)geobridge=([^;]+)/)?.[1];const session=sid?db.prepare('SELECT * FROM sessions WHERE id=? AND expires>?').get(sha(sid),Date.now()):null;const u=session?get('users',session.user_id):null;
  if(!u||u.disabled||!demoAccess.sessionValid(session.id))throw error(401,'Sign in to GeoBridge');if(req.headers['x-geobridge-account']&&req.headers['x-geobridge-account']!==JSON.stringify([u.id,u.role,u.tenant]))throw Object.assign(error(403,'The signed-in account changed in another tab. Sign in again to continue.'),{code:'SESSION_CHANGED'});if(method!=='GET'&&req.headers['x-csrf-token']!==session.csrf)throw error(403,'Request token missing or invalid');
  if(p==='/api/me')return send(res,200,{user:safeUser(u),csrf:session.csrf});
+ if(p.startsWith('/api/tbc-sandbox/')){
+  requireRole(u,'operator');if(!tbcSandbox.enabled)throw error(404,'TBC sandbox is not configured');
+  if(p==='/api/tbc-sandbox/status'&&method==='GET')return send(res,200,tbcSandbox.status(u,session.id));
+  if(p==='/api/tbc-sandbox/authorize'&&method==='POST'){const result=await tbcSandbox.start(u,session.id,tbcPsuIp(req));res.setHeader('Set-Cookie',tbcCookie(result.cookie,600));return send(res,200,{authorizationUrl:result.authorizationUrl})}
+  if(p==='/api/tbc-sandbox/accounts'&&method==='POST')return send(res,200,await tbcSandbox.accounts(u,session.id,tbcPsuIp(req)));
+  if(p==='/api/tbc-sandbox/disconnect'&&method==='POST')return send(res,200,tbcSandbox.disconnect(u,session.id));
+  throw error(404,'TBC sandbox route not found');
+ }
  if(p==='/api/notifications'&&method==='GET')return send(res,200,notifications.list(u));
  if(p==='/api/notifications/read'&&method==='POST'){const b=await body(req);return send(res,200,notifications.read(u,b.id));}
  if(p==='/api/notifications/stream'&&method==='GET'){
@@ -176,7 +196,7 @@ const server=http.createServer(async(req,res)=>{
   }
   throw error(405,'Method not allowed');
  }
- if(p==='/api/workspace'&&method==='GET')return send(res,200,workspacePayload(u,{records:all,profiles,sources:sourceRegistry(),aiConfigured:aiConfig().configured,canSee:authorized,reportSummaries:savedReports.listVisible(u)}));
+ if(p==='/api/workspace'&&method==='GET')return send(res,200,{...workspacePayload(u,{records:all,profiles,sources:sourceRegistry(),aiConfigured:aiConfig().configured,canSee:authorized,reportSummaries:savedReports.listVisible(u)}),tbcSandbox:tbcSandbox.enabled&&u.role==='operator'&&!get('demo_access_sessions',session.id)?tbcSandbox.status(u,session.id):null});
  if(p==='/api/connections'&&method==='POST'){requireRole(u,'bank','operator');const {errors,connection}=validateRegistration(await body(req),profiles);if(Object.keys(errors).length)throw Object.assign(error(400,'Check the required connection fields.'),{fieldErrors:errors});try{allowedURL(connection.baseUrl,allowedHosts)}catch(e){throw Object.assign(error(400,'Sandbox API host requires operator approval: '+e.message),{fieldErrors:{baseUrl:e.message}})}const c=put('connections',{...connection,id:id(),tenant:u.role==='operator'?'bank-demo':u.tenant,status:'not_connected',capabilities:Object.fromEntries(['accounts','balances','transactions'].map(op=>[op,'unknown'])),createdAt:new Date().toISOString(),adapter:null});event(u.id,'connection_registered',c.id);return send(res,201,c)}
  if(p.match(/^\/api\/connections\/[^/]+\/spec$/)&&method==='POST'){requireRole(u,'bank','operator');const cid=p.split('/')[3],c=get('connections',cid);if(!scope(u,c))throw error(404,'Connection not found');const b=await body(req),spec=b.spec;if(!spec||!/^3\./.test(spec.openapi)||!spec.paths)throw error(400,'Provide an OpenAPI 3 JSON document');const text=JSON.stringify(spec);if(text.includes('"$ref":"http'))throw error(400,'Remote $ref is not resolved. Bundle references locally.');const paths=Object.keys(spec.paths);if(paths.length>500)throw error(400,'Too many paths');put('specs',{id:cid,tenant:c.tenant,spec:redact(spec),sha256:sha(spec),uploadedAt:new Date().toISOString()});put('connections',{...c,specHash:sha(spec),operationCount:paths.length});event(u.id,'spec_uploaded',cid,{hash:sha(spec),paths:paths.length});let runId=null;try{runId=enqueue(u,{kind:'spec',connectionId:cid}).id}catch(e){if(e.status!==409)throw e}return send(res,200,{hash:sha(spec),paths:paths.length,runId,notice:runId?'Specification recorded; selected static checks queued. Runtime bank behavior is not assessed.':'Specification recorded. Finish the active run, then select Review specification on this connection.'})}
  if(p==='/api/packs'&&method==='POST'){requireRole(u,'bank','operator');const b=await body(req);let pack;try{pack=validatePack(b)}catch(e){throw error(400,e.message)}if(!profiles.some(x=>x.id===pack.profile))throw error(400,'Select a profile');const x=put('packs',{...redact(pack),id:id(),tenant:u.tenant,createdAt:new Date().toISOString(),hash:sha(redact(pack))});event(u.id,'synthetic_evidence_imported',x.id,{mode:x.mode});return send(res,201,{id:x.id,name:x.name})}
