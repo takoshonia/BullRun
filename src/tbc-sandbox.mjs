@@ -60,6 +60,7 @@ export function createTbcSandbox({get,put,remove,all,event,sessionValid,origin,c
    const pending=open(row.sealed,id);
    // OAuth token responses use authenticated mTLS, separately from AIS JWS.
    const r=await checked(tokenEndpoint,{method:'POST',form:{grant_type:'authorization_code',code,client_id:config.clientId,redirect_uri:callback,code_verifier:pending.verifier},verify:false});
+   gate(get('users',user.id),row.session);
    if(typeof r.body.access_token!=='string'||!r.body.access_token||/[\r\n]/.test(r.body.access_token)||r.body.token_type?.toLowerCase()!=='bearer'||!Number.isFinite(Number(r.body.expires_in))||Number(r.body.expires_in)<=0)throw fail(502,'TBC returned an invalid token response');
    const gid=grantId(user),expires=now()+Math.min(Number(r.body.expires_in),86400)*1000;
    put('tbc_sandbox_grants',{id:gid,user:user.id,expires,sealed:seal({token:r.body.access_token,consentId:pending.consentId},gid)});
@@ -70,6 +71,7 @@ export function createTbcSandbox({get,put,remove,all,event,sessionValid,origin,c
    gate(user,session);const row=get('tbc_sandbox_grants',grantId(user));
    if(!row||row.expires<=now())throw fail(409,'Connect TBC sandbox first; the authorization is missing or expired');
    const grant=open(row.sealed,row.id),r=await checked(api+'/accounts?withBalance=true',{token:grant.token,consentId:grant.consentId,psuIp});
+   gate(get('users',user.id),session);
    if(!Array.isArray(r.body.accounts))throw fail(502,'TBC accounts response has an unexpected format');
    event(user.id,'tbc_sandbox_accounts_read','tbc-sandbox',{count:r.body.accounts.length});
    return {environment:'TBC bank-operated sandbox',data:redact(r.body),proof:r.proof,notice:'Verified sandbox response. This is not a completed compliance audit.'};
