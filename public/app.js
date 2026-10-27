@@ -552,7 +552,9 @@ dialog.addEventListener('click',ev=>{if(ev.target===dialog)dialog.close()});
 let runPollInFlight=false;
 async function pollActiveAudit(){if(runPollInFlight||!state.user||state.page!=='detail'||!state.run||!['queued','running'].includes(state.run.status)||dialog.open)return;runPollInFlight=true;const id=state.run.id,identity=accountIdentity(state.user),current=()=>state.user&&accountIdentity(state.user)===identity&&state.page==='detail'&&state.run?.id===id;try{const run=await api('/api/runs/'+encodeURIComponent(id));if(!current())return;state.run=run;render();if(!['queued','running'].includes(run.status)){const workspace=await api('/api/workspace');if(current())state.workspace=workspace;}}catch{}finally{runPollInFlight=false;}}
 setInterval(pollActiveAudit,1300);
-try{const result=await api('/api/me');activateSession(result);await refresh()}catch(err){if(state.user)showError('Workspace could not load: '+err.message);else login()}
+const demoToken=globalThis.window?.location?.hash?.match(/^#demo-access\/([A-Za-z0-9_-]+)$/)?.[1];
+if(demoToken)globalThis.window.history.replaceState(null,'',globalThis.window.location.pathname);
+try{const result=demoToken?await api('/api/demo-access/redeem',{method:'POST',body:{token:demoToken}}):await api('/api/me');activateSession(result);await refresh()}catch(err){if(state.user)showError('Workspace could not load: '+err.message);else {login();if(demoToken)showError(err.message)}}
 
 function pct(v){return v===null||v===undefined?'Not measured':v.toFixed(2)+'%'}
 function gringottExplorer(){

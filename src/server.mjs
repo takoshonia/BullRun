@@ -1,3 +1,4 @@
+import {createDemoAccess} from './demo-access.mjs';
 import {createContractWebhooks,webhookConfiguration,webhookBody} from './contract-webhooks.mjs';
 import {auditVisible,auditActorRole,sharedBankReview} from './audit-visibility.mjs';
 import {bankAlerts} from './bank-alerts.mjs';
@@ -31,6 +32,7 @@ import {workspacePayload} from './workspace-access.mjs';
 import {createAvailability,parseTargets,requestJSON} from './availability.mjs';
 import {seedAdapterConnections,adapterTargets} from './adapters/registry.mjs';
 import {createCommonAIS} from './adapters/common-ais.mjs';
+const demoAccess=createDemoAccess({get,put,event});
 const notifications=createNotifications({all,get,put});
 if(!get('notification_cursor','events'))put('notification_cursor',{id:'events',lastId:db.prepare('SELECT COALESCE(MAX(id),0) AS id FROM events').get().id});
 function contractEvent(actor,action,target,detail={}){const result=event(actor,action,target,detail);try{notifications.deliver(result.lastInsertRowid,action,target,detail)}catch{console.error('Notification delivery pending event replay')}return result;}
@@ -102,12 +104,17 @@ const server=http.createServer(async(req,res)=>{
  const webhookMatch=p.match(/^\/api\/webhooks\/contracts\/(mock-[a-z0-9-]+)$/);
  if(webhookMatch&&method==='POST'){if(!String(req.headers['content-type']||'').startsWith('application/json'))throw error(415,'JSON webhook required');req.setTimeout(10000,()=>req.destroy());const receipt=contractWebhooks.accept(webhookMatch[1],req.headers,await webhookBody(req));send(res,202,receipt);void contractWebhooks.tick().catch(()=>console.error('Contract webhook queue unavailable'));return;}
  if(method!=='GET'&&req.headers.origin!==origin)throw error(403,'Origin check failed. Open '+origin);
+ if(p==='/api/demo-access/redeem'&&method==='POST'){
+ const address=req.socket.remoteAddress,prev=loginAttempts.get('demo:'+address)||{n:0,start:Date.now()};if(Date.now()-prev.start>60000){prev.n=0;prev.start=Date.now()}if(++prev.n>20)throw error(429,'Too many attempts; wait one minute');loginAttempts.set('demo:'+address,prev);
+ const b=await body(req),access=demoAccess.redeem(b.token);if(!access)throw error(401,'This demo access link is invalid, expired or revoked. Please sign in normally.');
+ const sid=id()+id(),csrf=id(),sessionHash=sha(sid);db.prepare('INSERT INTO sessions VALUES(?,?,?,?)').run(sessionHash,access.user.id,csrf,access.expires);demoAccess.bind(sessionHash,access.grant);event(access.user.id,'demo_access_login',access.grant.id);res.setHeader('Set-Cookie',`geobridge=${sid}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${Math.max(0,Math.floor((access.expires-Date.now())/1000))}${secure?'; Secure':''}`);return send(res,200,{user:safeUser(access.user),csrf});
+ }
  if(p==='/api/login'&&method==='POST'){
  const address=req.socket.remoteAddress,prev=loginAttempts.get(address)||{n:0,start:Date.now()};if(Date.now()-prev.start>60000){prev.n=0;prev.start=Date.now()}if(++prev.n>10)throw error(429,'Too many login attempts; wait one minute');loginAttempts.set(address,prev);
  const b=await body(req);if(typeof b.username!=='string'||typeof b.password!=='string')throw error(400,'Username and password must be text');const u=get('users',b.username);if(!u||u.disabled||!passwordMatch(String(b.password||''),u.password))throw error(401,'Invalid username or password');loginAttempts.delete(address);const sid=id()+id(),csrf=id();db.prepare('INSERT INTO sessions VALUES(?,?,?,?)').run(sha(sid),u.id,csrf,Date.now()+8*3600000);event(u.id,'login','session');res.setHeader('Set-Cookie',`geobridge=${sid}; Path=/; HttpOnly; SameSite=Strict; Max-Age=28800${secure?'; Secure':''}`);return send(res,200,{user:safeUser(u),csrf});
  }
  const sid=(req.headers.cookie||'').match(/(?:^|;\s*)geobridge=([^;]+)/)?.[1];const session=sid?db.prepare('SELECT * FROM sessions WHERE id=? AND expires>?').get(sha(sid),Date.now()):null;const u=session?get('users',session.user_id):null;
- if(!u||u.disabled)throw error(401,'Sign in to GeoBridge');if(req.headers['x-geobridge-account']&&req.headers['x-geobridge-account']!==JSON.stringify([u.id,u.role,u.tenant]))throw Object.assign(error(403,'The signed-in account changed in another tab. Sign in again to continue.'),{code:'SESSION_CHANGED'});if(method!=='GET'&&req.headers['x-csrf-token']!==session.csrf)throw error(403,'Request token missing or invalid');
+ if(!u||u.disabled||!demoAccess.sessionValid(session.id))throw error(401,'Sign in to GeoBridge');if(req.headers['x-geobridge-account']&&req.headers['x-geobridge-account']!==JSON.stringify([u.id,u.role,u.tenant]))throw Object.assign(error(403,'The signed-in account changed in another tab. Sign in again to continue.'),{code:'SESSION_CHANGED'});if(method!=='GET'&&req.headers['x-csrf-token']!==session.csrf)throw error(403,'Request token missing or invalid');
  if(p==='/api/me')return send(res,200,{user:safeUser(u),csrf:session.csrf});
  if(p==='/api/notifications'&&method==='GET')return send(res,200,notifications.list(u));
  if(p==='/api/notifications/read'&&method==='POST'){const b=await body(req);return send(res,200,notifications.read(u,b.id));}
@@ -115,7 +122,7 @@ const server=http.createServer(async(req,res)=>{
   requireRole(u,'operator','reviewer','bank');if(url.searchParams.get('account')!==JSON.stringify([u.id,u.role,u.tenant]))throw error(403,'Notification account changed');
   let closed=false;const emit=data=>{if(!closed)res.write('data: '+JSON.stringify(data)+'\n\n')};const unsubscribe=notifications.subscribe(u,emit);
   res.writeHead(200,{'Content-Type':'text/event-stream','Cache-Control':'no-store','Connection':'keep-alive','X-Accel-Buffering':'no'});emit(notifications.list(u));
-  const timer=setInterval(()=>{const current=get('users',u.id),valid=db.prepare('SELECT id FROM sessions WHERE id=? AND expires>?').get(session.id,Date.now());if(!valid||!current||current.disabled||current.role!==u.role||current.tenant!==u.tenant){res.end();return}res.write(': heartbeat\n\n')},15000);timer.unref();
+  const timer=setInterval(()=>{const current=get('users',u.id),valid=db.prepare('SELECT id FROM sessions WHERE id=? AND expires>?').get(session.id,Date.now());if(!valid||!demoAccess.sessionValid(session.id)||!current||current.disabled||current.role!==u.role||current.tenant!==u.tenant){res.end();return}res.write(': heartbeat\n\n')},15000);timer.unref();
   res.on('close',()=>{closed=true;clearInterval(timer);unsubscribe()});return;
  }
  if(p==='/api/availability'||p.startsWith('/api/availability/')){

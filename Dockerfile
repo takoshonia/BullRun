@@ -6,6 +6,7 @@ ENV GEOBRIDGE_AI_ENV_FILE=/app/data/ai/api-keys.env
 WORKDIR /app
 COPY --chown=node:node package.json ./
 COPY --chown=node:node src ./src
+COPY --chown=node:node scripts/demo-access.mjs ./scripts/demo-access.mjs
 COPY --chown=node:node public ./public
 COPY --chown=node:node sources ./sources
 COPY --chown=node:node examples ./examples
